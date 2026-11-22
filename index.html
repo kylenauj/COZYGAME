@@ -882,6 +882,20 @@ const CATALOGUE = [
   {id:'campfire',     name:'Campfire',  hint:'Glows once the sun is low.',              radius:0.55, maxSlope:0.90, tilt:0,    terrace:false},
   {id:'fence',        name:'Fence',     hint:'Line them up. R turns it.',               radius:0.20, maxSlope:1.20, tilt:0.45, terrace:false},
   {id:'lamp',         name:'Lamp',      hint:'Lights up once the sun drops.',           radius:0.25, maxSlope:1.30, tilt:0,    terrace:false},
+
+  // The Zen garden. Built by the model kit rather than baked.
+  {id:'sakura',         name:'Cherry tree',  hint:'Blossom on bare wood. Three together grow into an old one.', radius:0.55, maxSlope:1.60, tilt:0.30, terrace:false, mergeInto:'great_sakura', mergeRadius:3.2},
+  {id:'maple',          name:'Maple',        hint:'Small and red-leaved. Lovely beside water.',         radius:0.50, maxSlope:1.60, tilt:0.30, terrace:false},
+  {id:'bonsai',         name:'Bonsai',       hint:'A whole tree, kept small on purpose.',               radius:0.34, maxSlope:1.10, tilt:0.20, terrace:false},
+  {id:'stone_lantern',  name:'Stone lantern',hint:'Lit at dusk. Three raise a pagoda.',                 radius:0.32, maxSlope:1.30, tilt:0,    terrace:false, mergeInto:'pagoda',       mergeRadius:3.6},
+  {id:'torii',          name:'Gate',         hint:'Two posts and a beam. Marks the way in.',            radius:0.55, maxSlope:1.00, tilt:0,    terrace:true},
+  {id:'koi_pond',       name:'Koi pond',     hint:'Still water and two slow fish.',                      radius:1.00, maxSlope:0.95, tilt:0,    terrace:true},
+  {id:'arch_bridge',    name:'Red bridge',   hint:'Arched and lacquered. Best across a path.',           radius:0.90, maxSlope:1.00, tilt:0,    terrace:true},
+  {id:'raked_sand',     name:'Raked sand',   hint:'Raked into lines. Someone does it again each morning.', radius:0.90, maxSlope:0.95, tilt:0,  terrace:true},
+  {id:'stepping_stones',name:'Stepping stones',hint:'For a slow walk. Three make a garden.',              radius:0.45, maxSlope:1.20, tilt:0.35, terrace:false, mergeInto:'zen_garden', mergeRadius:3.4},
+  {id:'moss_boulder',   name:'Mossy stone',  hint:'An old stone wearing a coat of moss.',                 radius:0.50, maxSlope:2.00, tilt:0.60, terrace:false},
+  {id:'water_basin',    name:'Bamboo spout', hint:'A bamboo pipe filling a stone basin.',                 radius:0.42, maxSlope:1.10, tilt:0,    terrace:false},
+  {id:'tea_house',      name:'Tea house',    hint:'Paper walls and a low roof. Glows from inside at night.', radius:1.10, maxSlope:1.20, tilt:0, terrace:true},
 ];
 
 /* Merged forms. Not directly placeable, so they stay out of the toolbar.
@@ -902,6 +916,9 @@ const MERGED = [
   {id:'bamboo_grove',name:'Bamboo stand',radius:1.25, maxSlope:1.30, tilt:0,    terrace:false},
   {id:'orchard',     name:'Orchard',     radius:1.35, maxSlope:1.00, tilt:0,    terrace:true},
   {id:'shrine',      name:'Shrine',      radius:1.25, maxSlope:1.00, tilt:0,    terrace:true},
+  {id:'pagoda',       name:'Pagoda',       radius:1.20, maxSlope:1.10, tilt:0,    terrace:true},
+  {id:'great_sakura', name:'Old cherry',   radius:1.40, maxSlope:1.60, tilt:0.25, terrace:false},
+  {id:'zen_garden',   name:'Stone garden', radius:1.45, maxSlope:0.95, tilt:0,    terrace:true},
 ];
 
 const LAND_TOOLS = [
@@ -941,6 +958,9 @@ const THEMES = {
                                      'totem', 'bamboo_grove', 'orchard', 'shrine'] },
   scholar:  { name: 'Reading',  ids: ['library', 'great_tome', 'book_pile', 'book_scatter',
                                      'observatory', 'radio', 'lantern', 'gazebo'] },
+  zen:      { name: 'Zen',      ids: ['sakura', 'maple', 'bonsai', 'stone_lantern', 'torii', 'koi_pond',
+                                     'arch_bridge', 'raked_sand', 'stepping_stones', 'moss_boulder',
+                                     'water_basin', 'tea_house', 'pagoda', 'great_sakura', 'zen_garden'] },
   utility:  { name: 'Utility',  ids: ['fence', 'lamp', 'bench', 'signpost'] },
 };
 for (const key in THEMES) {
@@ -987,6 +1007,7 @@ function pointsHeld(typeId, depth) {
   return 3 * pointsHeld(from.id, (depth || 0) + 1) + MERGE_POINTS;
 }
 const TREE_KINDS = ['pine', 'tree_round', 'palm', 'jungle_tree', 'bush', 'fruit_bush',
+                    'sakura', 'maple', 'great_sakura',
                     'pine_great', 'oak_great'];
 const FOREST_NEED = 4, FOREST_RADIUS = 6.0;
 const TOWN_NEED = 4, TOWN_RADIUS = 8.0;
@@ -1043,6 +1064,8 @@ const GROUPS = [
   {name:'Nature',  ids:['pine','tree_round','palm','bush','flowers','rock']},
   {name:'Shore',   ids:['shelter','raft','crate','barrel','fish_rack','torch','coral','driftwood','reeds']},
   {name:'Jungle',  ids:['jungle_tree','bamboo','fern','fruit_bush','jungle_flower','totem']},
+  {name:'Zen',     ids:['tea_house','torii','stone_lantern','koi_pond','arch_bridge','sakura','maple',
+                        'bonsai','raked_sand','stepping_stones','moss_boulder','water_basin']},
   {name:'Details', ids:['fence','lamp','lantern','radio','bench','signpost','campfire']},
   {name:'Ground',  ids:['path','field','clear','raise','lower','level']},
   {name:'Tools',   ids:['mover','eraser']},
@@ -1311,6 +1334,382 @@ function chipArt(id) {
   g.textContent = TOOL_GLYPHS[id] || '\u25C7';
   return g;
 }
+
+/* --- the model kit -------------------------------------------------------
+
+   The fifty-seven models above were baked by a script that is not in this
+   repository. New pieces are built here instead, in code, out of a handful of
+   primitives — and built to the same rules as the baked ones, so the rest of
+   the game cannot tell them apart:
+
+   - flat shading from non-indexed triangles, exactly as parseGLB produces;
+   - one mesh per material slot, so a piece costs a few draw calls at most;
+   - material slots NAMED, and shared by every kit piece, so the palettes
+     retint them through TINTABLE the same way they retint the baked kit;
+   - the base sits on y = 0, and anything that meets the ground is marked so
+     buildFooting can continue it down a slope. Pieces that stand level carry
+     a 'footing' part of their own, so only that part is extruded.
+
+   Shapes are anchored at their BOTTOM centre (boxes, cylinders, cones), so a
+   part is placed by where it stands and leans from its foot. Balls and rocks
+   are centred. A part may be `jitter`ed: its corners nudged by a hash of where
+   they are, so faces that share a corner still share it and nothing tears.
+   ------------------------------------------------------------------------ */
+const KIT_MATS = {};
+
+/* Colours for slots no palette lists yet. Anything a palette does list is
+   repainted by applyPalette as soon as the island loads. */
+const KIT_DEFAULT = { footing: 0xA99D8A, plinth: 0xB8AC98 };
+
+/* Slots that glow after dark. The night pass in applyTimeOfDay drives
+   window_lit and flame for baked and kit pieces alike. */
+const KIT_GLOW = { window_lit: [0xFFE3B0, 0xFFB45C], flame: [0xFFB060, 0xFF7A2A] };
+
+function kitMat(slot) {
+  if (KIT_MATS[slot]) return KIT_MATS[slot];
+  const pal = PALETTES[0].tint;
+  const glow = KIT_GLOW[slot];
+  const hex = glow ? glow[0] : pal[slot] !== undefined ? pal[slot] : (KIT_DEFAULT[slot] || 0xBBB4A8);
+  const m = new THREE.MeshStandardMaterial({ color: lin(hex), roughness: 0.9, metalness: 0 });
+  m.name = slot;
+  if (glow) m.emissive = lin(glow[1]);
+  dressSurface(m);
+  (TINTABLE[slot] = TINTABLE[slot] || []).push(m);
+  return (KIT_MATS[slot] = m);
+}
+
+const KIT_SHAPES = {
+  box: (w, h, d) => new THREE.BoxGeometry(w, h, d).translate(0, h / 2, 0),
+  cyl: (rt, rb, h, seg) => new THREE.CylinderGeometry(rt, rb, h, seg || 7).translate(0, h / 2, 0),
+  cone: (r, h, seg) => new THREE.ConeGeometry(r, h, seg || 7).translate(0, h / 2, 0),
+  ball: (r, detail) => new THREE.IcosahedronGeometry(r, detail || 0),
+  rock: (r) => new THREE.DodecahedronGeometry(r, 0),
+  ring: (R, t, seg) => new THREE.TorusGeometry(R, t, 4, seg || 14).rotateX(Math.PI / 2),
+};
+
+const kitHash = (x, y, z, s) => {
+  const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7 + s * 19.19) * 43758.5453;
+  return v - Math.floor(v);
+};
+
+function kitModel(build) {
+  const bySlot = {};
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+  const pos = new THREE.Vector3(), scl = new THREE.Vector3();
+
+  const add = (geo, slot, o) => {
+    o = o || {};
+    let g = geo.index ? geo.toNonIndexed() : geo;
+    const a = o.at || [0, 0, 0], r = o.rot || [0, 0, 0];
+    const sc = o.scale === undefined ? [1, 1, 1] : (typeof o.scale === 'number' ? [o.scale, o.scale, o.scale] : o.scale);
+    m4.compose(pos.set(a[0], a[1], a[2]), q.setFromEuler(e.set(r[0], r[1], r[2])), scl.set(sc[0], sc[1], sc[2]));
+    g.applyMatrix4(m4);
+    if (o.jitter) {
+      const p = g.attributes.position.array, s = o.seed || 0;
+      for (let i = 0; i < p.length; i += 3) {
+        const x = Math.round(p[i] * 1000) / 1000, y = Math.round(p[i + 1] * 1000) / 1000, z = Math.round(p[i + 2] * 1000) / 1000;
+        p[i]     += (kitHash(x, y, z, s) - 0.5) * o.jitter;
+        p[i + 1] += (kitHash(y, z, x, s + 1) - 0.5) * o.jitter;
+        p[i + 2] += (kitHash(z, x, y, s + 2) - 0.5) * o.jitter;
+      }
+    }
+    (bySlot[slot] = bySlot[slot] || []).push(g.attributes.position.array);
+  };
+
+  build(add, KIT_SHAPES);
+
+  const group = new THREE.Group();
+  for (const slot in bySlot) {
+    const parts = bySlot[slot];
+    let n = 0;
+    for (const a of parts) n += a.length;
+    const all = new Float32Array(n);
+    let off = 0;
+    for (const a of parts) { all.set(a, off); off += a.length; }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(all, 3));
+    geometry.computeVertexNormals();       // non-indexed, so one normal per face: flat
+    const mesh = new THREE.Mesh(geometry, kitMat(slot));
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    geometry.computeBoundingBox();
+    const bb = geometry.boundingBox;
+    if (bb.min.y < 0.06 && bb.max.y > bb.min.y + 0.02) mesh.userData.groundHeight = bb.max.y - bb.min.y;
+    group.add(mesh);
+  }
+  return group;
+}
+
+/* --- the Zen garden ---------------------------------------------------------
+   Pairs with the Blossom palette, though it reads in every season: the petals
+   go red in autumn and white under frost, because they share the baked kit's
+   petal slot. Five slots are new to the palettes — lacquer, maple, paper,
+   raked and moss, plus koi — and each palette gives them its own colour. */
+const KIT_MODELS = {
+
+  sakura: () => kitModel((add, s) => {
+    add(s.cyl(0.09, 0.16, 1.05, 6), 'wood_dark', { rot: [0, 0, 0.07] });
+    add(s.cyl(0.04, 0.08, 0.62, 5), 'wood_dark', { at: [0.05, 0.75, 0], rot: [0.1, 0, -0.9] });
+    add(s.cyl(0.04, 0.07, 0.55, 5), 'wood_dark', { at: [0.06, 0.82, 0], rot: [0.75, 0, 0.45] });
+    add(s.cyl(0.04, 0.07, 0.5, 5), 'wood_dark', { at: [0.06, 0.86, 0], rot: [-0.8, 0, 0.3] });
+    const blobs = [[0.02, 1.5, 0, 0.5], [0.5, 1.28, 0.05, 0.38], [-0.42, 1.36, -0.12, 0.4],
+                   [0.12, 1.34, 0.45, 0.36], [-0.08, 1.4, -0.46, 0.36], [0.2, 1.86, -0.05, 0.32],
+                   [-0.3, 1.72, 0.22, 0.3]];
+    blobs.forEach(([x, y, z, r], i) => add(s.ball(r, 1), i % 3 === 2 ? 'petal_pale' : 'petal',
+      { at: [x, y, z], scale: [1, 0.8, 1], jitter: 0.07, seed: i }));
+  }),
+
+  maple: () => kitModel((add, s) => {
+    add(s.cyl(0.07, 0.13, 0.95, 6), 'wood_dark', { rot: [0.05, 0, -0.06] });
+    add(s.cyl(0.035, 0.06, 0.5, 5), 'wood_dark', { at: [-0.03, 0.7, 0], rot: [0, 0, 1.0] });
+    add(s.cyl(0.035, 0.06, 0.45, 5), 'wood_dark', { at: [-0.02, 0.78, 0], rot: [0, 0, -0.95] });
+    const tiers = [[0, 1.0, 0, 0.62, 0.45], [0.18, 1.32, 0.08, 0.5, 0.42], [-0.12, 1.6, -0.06, 0.38, 0.45],
+                   [0.45, 1.1, -0.2, 0.36, 0.4], [-0.48, 1.18, 0.15, 0.36, 0.4]];
+    tiers.forEach(([x, y, z, r, sy], i) => add(s.ball(r, 1), 'maple',
+      { at: [x, y, z], scale: [1.15, sy, 1.05], jitter: 0.06, seed: 10 + i }));
+  }),
+
+  bonsai: () => kitModel((add, s) => {
+    add(s.box(0.62, 0.16, 0.4), 'slate');
+    add(s.box(0.68, 0.04, 0.46), 'slate', { at: [0, 0.15, 0] });
+    add(s.box(0.56, 0.03, 0.34), 'soil', { at: [0, 0.16, 0] });
+    add(s.rock(0.07), 'moss', { at: [0.18, 0.2, 0.08], scale: [1.2, 0.5, 1] });
+    add(s.cyl(0.035, 0.065, 0.3, 5), 'wood_dark', { at: [-0.04, 0.18, 0], rot: [0, 0, 0.55] });
+    add(s.cyl(0.025, 0.04, 0.3, 5), 'wood_dark', { at: [-0.18, 0.42, 0], rot: [0.1, 0, -0.95] });
+    add(s.cyl(0.02, 0.03, 0.22, 5), 'wood_dark', { at: [-0.14, 0.44, 0], rot: [-0.2, 0, 0.2] });
+    add(s.ball(0.17, 1), 'leaf_pine', { at: [0.14, 0.6, 0.02], scale: [1.45, 0.42, 1.1], jitter: 0.03, seed: 3 });
+    add(s.ball(0.13, 1), 'leaf_pine', { at: [-0.22, 0.52, 0.05], scale: [1.4, 0.45, 1.1], jitter: 0.03, seed: 4 });
+    add(s.ball(0.11, 1), 'leaf_pine', { at: [-0.12, 0.72, -0.04], scale: [1.4, 0.45, 1.1], jitter: 0.03, seed: 5 });
+  }),
+
+  stone_lantern: () => kitModel((add, s) => {
+    add(s.cyl(0.3, 0.33, 0.08, 6), 'footing');
+    add(s.cyl(0.08, 0.11, 0.44, 6), 'stone', { at: [0, 0.08, 0] });
+    add(s.cyl(0.23, 0.17, 0.09, 6), 'stone', { at: [0, 0.5, 0] });
+    for (const [x, z] of [[-0.1, -0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, 0.1]]) {
+      add(s.box(0.055, 0.24, 0.055), 'stone', { at: [x, 0.58, z] });
+    }
+    add(s.box(0.17, 0.2, 0.17), 'window_lit', { at: [0, 0.6, 0] });
+    add(s.cyl(0.32, 0.32, 0.035, 6), 'stone', { at: [0, 0.82, 0] });
+    add(s.cone(0.38, 0.22, 6), 'stone', { at: [0, 0.85, 0] });
+    add(s.cyl(0.03, 0.05, 0.08, 6), 'stone', { at: [0, 1.04, 0] });
+    add(s.ball(0.065, 0), 'stone', { at: [0, 1.14, 0], scale: [1, 1.2, 1] });
+  }),
+
+  torii: () => kitModel((add, s) => {
+    for (const x of [-0.74, 0.74]) {
+      add(s.box(0.34, 0.08, 0.34), 'footing', { at: [x, 0, 0] });
+      add(s.cyl(0.115, 0.125, 0.16, 8), 'slate', { at: [x, 0.08, 0] });
+      add(s.cyl(0.075, 0.095, 1.78, 8), 'lacquer', { at: [x, 0.1, 0], rot: [0, 0, x > 0 ? 0.03 : -0.03] });
+    }
+    add(s.box(1.78, 0.1, 0.1), 'lacquer', { at: [0, 1.4, 0] });
+    add(s.box(0.1, 0.32, 0.08), 'lacquer', { at: [0, 1.5, 0] });
+    add(s.box(0.22, 0.14, 0.1), 'slate', { at: [0, 1.56, 0.02] });
+    add(s.box(2.0, 0.11, 0.17), 'lacquer', { at: [0, 1.82, 0] });
+    add(s.box(1.6, 0.1, 0.22), 'wood_dark', { at: [0, 1.93, 0] });
+    for (const sgn of [-1, 1]) {
+      add(s.box(0.42, 0.1, 0.22), 'wood_dark', { at: [sgn * 0.95, 1.9, 0], rot: [0, 0, sgn * 0.22] });
+    }
+  }),
+
+  koi_pond: () => kitModel((add, s) => {
+    add(s.cyl(0.9, 0.92, 0.05, 12), 'footing');
+    add(s.cyl(0.8, 0.8, 0.06, 14), 'water', { at: [0, 0.04, 0] });
+    for (let i = 0; i < 12; i++) {
+      const a = i / 12 * Math.PI * 2 + (i % 2) * 0.12;
+      const r = 0.86 + (i % 3) * 0.04;
+      add(s.rock(0.15 + (i % 4) * 0.035), i % 5 === 0 ? 'moss' : 'stone',
+        { at: [Math.cos(a) * r, 0.07, Math.sin(a) * r], scale: [1.1, 0.6, 0.95], jitter: 0.04, seed: 30 + i });
+    }
+    add(s.ball(0.065, 0), 'koi', { at: [0.22, 0.11, 0.12], rot: [0, 0.6, 0], scale: [2.3, 0.55, 1] });
+    add(s.cone(0.05, 0.09, 4), 'koi', { at: [0.07, 0.11, 0.22], rot: [0, 0.6, 1.57] });
+    add(s.ball(0.06, 0), 'petal_pale', { at: [-0.28, 0.11, -0.16], rot: [0, 2.4, 0], scale: [2.3, 0.55, 1] });
+    add(s.ball(0.025, 0), 'koi', { at: [-0.24, 0.13, -0.14] });
+    add(s.cyl(0.14, 0.14, 0.015, 7), 'leaf_bright', { at: [-0.32, 0.1, 0.38] });
+    add(s.cyl(0.1, 0.1, 0.015, 6), 'leaf_bright', { at: [-0.08, 0.1, 0.5] });
+    add(s.ball(0.045, 0), 'petal', { at: [-0.32, 0.14, 0.38] });
+  }),
+
+  arch_bridge: () => kitModel((add, s) => {
+    const span = 1.15, rise = 0.5, base = 0.1;
+    const arcY = (x) => base + rise * (1 - (x / span) * (x / span));
+    const slope = (x) => Math.atan(-2 * rise * x / (span * span));
+    for (const x of [-span, span]) add(s.box(0.34, 0.1, 0.84), 'footing', { at: [x, 0, 0] });
+    for (let i = 0; i <= 10; i++) {
+      const x = -1.1 + i * 0.22;
+      add(s.box(0.21, 0.06, 0.7), 'wood_light', { at: [x, arcY(x) - 0.03, 0], rot: [0, 0, slope(x)] });
+    }
+    // Side beams under the planks, so it reads as one arch rather than loose boards.
+    for (let i = 0; i < 10; i++) {
+      const x1 = -1.1 + i * 0.22, x2 = x1 + 0.22;
+      const mx = (x1 + x2) / 2, my = (arcY(x1) + arcY(x2)) / 2 - 0.1;
+      for (const z of [-0.33, 0.33]) {
+        add(s.box(0.24, 0.08, 0.06), 'lacquer', { at: [mx, my, z], rot: [0, 0, Math.atan2(arcY(x2) - arcY(x1), 0.22)] });
+      }
+    }
+    const posts = [-1.08, -0.54, 0, 0.54, 1.08];
+    const top = (x) => arcY(x) + 0.4;
+    for (const z of [-0.36, 0.36]) {
+      for (const x of posts) {
+        add(s.cyl(0.035, 0.04, 0.4, 6), 'lacquer', { at: [x, arcY(x), z] });
+        add(s.ball(0.05, 0), 'slate', { at: [x, top(x) + 0.03, z], scale: [1, 1.3, 1] });
+      }
+      for (let i = 0; i < posts.length - 1; i++) {
+        const x1 = posts[i], x2 = posts[i + 1];
+        const len = Math.hypot(x2 - x1, top(x2) - top(x1));
+        add(s.box(len, 0.045, 0.045), 'lacquer',
+          { at: [(x1 + x2) / 2, (top(x1) + top(x2)) / 2 - 0.05, z], rot: [0, 0, Math.atan2(top(x2) - top(x1), x2 - x1)] });
+      }
+    }
+  }),
+
+  raked_sand: () => kitModel((add, s) => {
+    add(s.box(1.6, 0.05, 1.6), 'footing');
+    add(s.box(1.5, 0.05, 1.5), 'raked', { at: [0, 0.04, 0] });
+    for (let i = 0; i < 7; i++) add(s.box(1.42, 0.022, 0.045), 'raked', { at: [0, 0.09, -0.6 + i * 0.2] });
+    add(s.box(1.62, 0.1, 0.07), 'wood_dark', { at: [0, 0.03, 0.77] });
+    add(s.box(1.62, 0.1, 0.07), 'wood_dark', { at: [0, 0.03, -0.77] });
+    add(s.box(0.07, 0.1, 1.48), 'wood_dark', { at: [0.77, 0.03, 0] });
+    add(s.box(0.07, 0.1, 1.48), 'wood_dark', { at: [-0.77, 0.03, 0] });
+    add(s.rock(0.2), 'stone', { at: [0.32, 0.18, 0.22], scale: [1.25, 0.85, 1], jitter: 0.05, seed: 51 });
+    add(s.ball(0.17, 1), 'moss', { at: [0.3, 0.3, 0.22], scale: [1.3, 0.38, 1.1], jitter: 0.03, seed: 52 });
+    add(s.rock(0.11), 'stone', { at: [-0.38, 0.13, -0.34], scale: [1.2, 0.8, 1], jitter: 0.03, seed: 53 });
+  }),
+
+  stepping_stones: () => kitModel((add, s) => {
+    const steps = [[-0.72, -0.12], [-0.36, 0.1], [0, -0.05], [0.36, 0.12], [0.72, -0.04]];
+    steps.forEach(([x, z], i) => {
+      add(s.rock(0.21 + (i % 2) * 0.02), 'stone',
+        { at: [x, 0.05, z], rot: [0, i * 0.9, 0], scale: [1.15, 0.45, 1.0], jitter: 0.04, seed: 60 + i });
+    });
+    for (const [x, z] of [[-0.54, 0.16], [0.18, -0.2], [0.56, 0.22], [-0.2, -0.14]]) {
+      add(s.ball(0.08, 1), 'moss', { at: [x, 0.03, z], scale: [1.5, 0.55, 1.2], jitter: 0.02, seed: x * 7 });
+    }
+  }),
+
+  moss_boulder: () => kitModel((add, s) => {
+    add(s.rock(0.42), 'stone', { at: [0, 0.3, 0], scale: [1.15, 0.85, 1], jitter: 0.08, seed: 70 });
+    add(s.rock(0.22), 'stone', { at: [0.42, 0.13, 0.2], scale: [1.1, 0.8, 1], jitter: 0.05, seed: 71 });
+    add(s.ball(0.4, 1), 'moss', { at: [-0.03, 0.55, -0.02], scale: [1.08, 0.34, 0.95], jitter: 0.05, seed: 72 });
+    add(s.ball(0.15, 1), 'moss', { at: [0.42, 0.27, 0.2], scale: [1.1, 0.35, 1], jitter: 0.03, seed: 73 });
+    for (let i = 0; i < 3; i++) {
+      add(s.cone(0.04, 0.3, 4), 'leaf_bright', { at: [-0.4 + i * 0.05, 0, 0.3], rot: [0.3, 0, -0.4 + i * 0.4] });
+    }
+  }),
+
+  water_basin: () => kitModel((add, s) => {
+    add(s.cyl(0.36, 0.4, 0.06, 8), 'footing');
+    add(s.cyl(0.3, 0.26, 0.3, 8), 'stone', { at: [0, 0.05, 0] });
+    add(s.cyl(0.22, 0.22, 0.02, 8), 'water', { at: [0, 0.32, 0] });
+    add(s.cyl(0.06, 0.065, 0.66, 6), 'bamboo', { at: [-0.44, 0, 0] });
+    add(s.cyl(0.07, 0.07, 0.035, 6), 'wood_light', { at: [-0.44, 0.28, 0] });
+    add(s.cyl(0.07, 0.07, 0.035, 6), 'wood_light', { at: [-0.44, 0.55, 0] });
+    add(s.cyl(0.045, 0.045, 0.5, 6), 'bamboo', { at: [-0.46, 0.58, 0], rot: [0, 0, -1.8] });
+    add(s.cyl(0.03, 0.03, 0.2, 5), 'water', { at: [0.02, 0.32, 0] });
+    add(s.rock(0.1), 'stone', { at: [0.3, 0.06, 0.24], scale: [1.2, 0.7, 1], seed: 80 });
+    add(s.rock(0.08), 'moss', { at: [-0.24, 0.05, 0.3], scale: [1.2, 0.6, 1], seed: 81 });
+    add(s.rock(0.12), 'stone', { at: [0.1, 0.06, -0.36], scale: [1.2, 0.7, 1], seed: 82 });
+  }),
+
+  tea_house: () => kitModel((add, s) => {
+    add(s.box(2.0, 0.22, 1.85), 'footing');
+    add(s.box(2.1, 0.05, 1.95), 'wood_light', { at: [0, 0.22, 0] });
+    add(s.box(1.6, 0.8, 1.3), 'paper', { at: [0, 0.27, -0.1] });
+    for (const x of [-0.8, 0.8]) for (const z of [-0.75, 0.55]) {
+      add(s.box(0.09, 0.84, 0.09), 'wood_dark', { at: [x, 0.27, z] });
+    }
+    add(s.box(1.7, 0.08, 0.08), 'wood_dark', { at: [0, 1.03, 0.56] });
+    add(s.box(1.7, 0.08, 0.08), 'wood_dark', { at: [0, 1.03, -0.76] });
+    add(s.box(0.08, 0.08, 1.4), 'wood_dark', { at: [0.8, 1.03, -0.1] });
+    add(s.box(0.08, 0.08, 1.4), 'wood_dark', { at: [-0.8, 1.03, -0.1] });
+    // Shoji on the front: two lit panels behind a lattice, so at night the
+    // whole face glows through the grid.
+    add(s.box(0.66, 0.6, 0.02), 'window_lit', { at: [-0.37, 0.34, 0.552] });
+    add(s.box(0.66, 0.6, 0.02), 'window_lit', { at: [0.37, 0.34, 0.552] });
+    for (const x of [-0.7, -0.48, -0.26, -0.04, 0.04, 0.26, 0.48, 0.7]) {
+      add(s.box(0.025, 0.64, 0.025), 'wood_dark', { at: [x, 0.32, 0.565] });
+    }
+    for (const y of [0.32, 0.53, 0.74, 0.95]) add(s.box(1.5, 0.025, 0.025), 'wood_dark', { at: [0, y, 0.565] });
+    // Thatch: thick at the eave, the way a tea house roof is laid.
+    add(s.box(2.25, 0.12, 1.92), 'hay', { at: [0, 1.02, -0.1] });
+    add(s.cone(1.0, 0.78, 4), 'hay', { at: [0, 1.1, -0.1], rot: [0, Math.PI / 4, 0], scale: [1.55, 1, 1.32] });
+    add(s.box(0.62, 0.1, 0.16), 'wood_dark', { at: [0, 1.82, -0.1] });
+    add(s.rock(0.16), 'stone', { at: [0, 0.02, 1.15], scale: [1.4, 0.35, 1.1], seed: 90 });
+  }),
+
+  /* Merged forms. */
+
+  pagoda: () => kitModel((add, s) => {
+    add(s.box(1.75, 0.24, 1.75), 'footing');
+    add(s.box(1.55, 0.06, 1.55), 'wood_light', { at: [0, 0.24, 0] });
+    for (let i = 0; i < 3; i++) {
+      const w = 1.02 - i * 0.2, y0 = 0.3 + i * 0.78;
+      add(s.box(w, 0.5, w), 'lacquer', { at: [0, y0, 0] });
+      add(s.box(w * 0.34, w * 0.3, 0.02), 'window_lit', { at: [0, y0 + 0.12, w / 2 + 0.005] });
+      add(s.box(w * 0.34, w * 0.3, 0.02), 'window_lit', { at: [0, y0 + 0.12, -w / 2 - 0.005] });
+      const eave = w / 2 + 0.32;
+      add(s.box(eave * 2, 0.07, eave * 2), 'roof_teal', { at: [0, y0 + 0.47, 0] });
+      add(s.cone(eave * Math.SQRT2, 0.34, 4), 'roof_teal', { at: [0, y0 + 0.53, 0], rot: [0, Math.PI / 4, 0] });
+    }
+    const top = 0.3 + 2 * 0.78 + 0.86;
+    add(s.cyl(0.03, 0.045, 0.7, 6), 'fruit', { at: [0, top - 0.06, 0] });
+    for (let i = 0; i < 4; i++) add(s.ring(0.07 - i * 0.008, 0.018, 8), 'fruit', { at: [0, top + 0.08 + i * 0.12, 0] });
+    add(s.ball(0.07, 0), 'fruit', { at: [0, top + 0.68, 0], scale: [1, 1.3, 1] });
+  }),
+
+  great_sakura: () => kitModel((add, s) => {
+    add(s.cyl(0.2, 0.36, 1.45, 7), 'wood_dark', { rot: [0.04, 0, 0.06], jitter: 0.03, seed: 100 });
+    for (const [rx, rz, y] of [[0.2, -0.95, 1.05], [0.9, 0.5, 1.15], [-0.85, 0.4, 1.2], [-0.2, 0.9, 1.0]]) {
+      add(s.cyl(0.07, 0.14, 0.95, 6), 'wood_dark', { at: [0.05, y, 0], rot: [rx, 0, rz] });
+    }
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.1 + 0.4;
+      add(s.cone(0.12, 0.4, 5), 'wood_dark', { at: [Math.cos(a) * 0.28, 0, Math.sin(a) * 0.28],
+        rot: [Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9] });
+    }
+    const blobs = [[0, 2.35, 0, 0.78], [0.85, 2.0, 0.1, 0.62], [-0.82, 2.08, -0.15, 0.64], [0.2, 2.05, 0.8, 0.58],
+                   [-0.15, 2.1, -0.82, 0.6], [0.5, 2.7, -0.3, 0.5], [-0.45, 2.75, 0.35, 0.5], [0.62, 2.2, 0.62, 0.45],
+                   [-0.6, 2.25, -0.6, 0.45], [0.1, 3.0, 0.1, 0.42]];
+    blobs.forEach(([x, y, z, r], i) => add(s.ball(r, 1), i % 3 === 1 ? 'petal_pale' : 'petal',
+      { at: [x, y, z], scale: [1, 0.78, 1], jitter: 0.09, seed: 110 + i }));
+  }),
+
+  zen_garden: () => kitModel((add, s) => {
+    const W = 2.7, D = 2.3;
+    add(s.box(W + 0.1, 0.05, D + 0.1), 'footing');
+    add(s.box(W, 0.05, D), 'raked', { at: [0, 0.04, 0] });
+    add(s.box(W + 0.12, 0.11, 0.07), 'wood_dark', { at: [0, 0.03, D / 2 + 0.03] });
+    add(s.box(W + 0.12, 0.11, 0.07), 'wood_dark', { at: [0, 0.03, -D / 2 - 0.03] });
+    add(s.box(0.07, 0.11, D), 'wood_dark', { at: [W / 2 + 0.03, 0.03, 0] });
+    add(s.box(0.07, 0.11, D), 'wood_dark', { at: [-W / 2 - 0.03, 0.03, 0] });
+    // Stones, each with raked rings around it; the straight lines stop where
+    // the rings begin, the way a real garden is raked.
+    const isles = [[-0.62, -0.3, 0.36, 0.62], [0.72, 0.42, 0.26, 0.48], [0.38, -0.62, 0.15, 0.3]];
+    for (const [x, z, r, R] of isles) {
+      add(s.rock(r), 'stone', { at: [x, 0.08 + r * 0.45, z], scale: [1.2, 0.85, 1], jitter: 0.06, seed: 120 + x * 10 });
+      add(s.ball(r * 0.85, 1), 'moss', { at: [x, 0.1 + r * 0.9, z], scale: [1.25, 0.32, 1.1], jitter: 0.03, seed: 130 + x * 10 });
+      for (const k of [0.55, 0.78, 1.0]) add(s.ring(R * k, 0.022, 16), 'raked', { at: [x, 0.09, z], scale: [1, 0.6, 1] });
+    }
+    for (let i = 0; i < 11; i++) {
+      const z = -D / 2 + 0.15 + i * 0.2;
+      let cuts = [];
+      for (const [x, iz, , R] of isles) {
+        const dz = z - iz;
+        if (Math.abs(dz) < R + 0.06) {
+          const dx = Math.sqrt(Math.max(0, (R + 0.06) * (R + 0.06) - dz * dz));
+          cuts.push([x - dx, x + dx]);
+        }
+      }
+      cuts.sort((a, b) => a[0] - b[0]);
+      let from = -W / 2 + 0.06;
+      const end = W / 2 - 0.06;
+      for (const [a, b] of cuts.concat([[end, end]])) {
+        if (a - from > 0.05) add(s.box(a - from, 0.022, 0.045), 'raked', { at: [(from + a) / 2, 0.08, z] });
+        from = Math.max(from, b);
+      }
+    }
+  }),
+};
 
 /* --- the island ---------------------------------------------------------
    Terrain is a base function plus an editable offset field. The base comes
@@ -1725,6 +2124,23 @@ const PALETTES = [
             plinth:0xAAA498,
             footing:0x9A9488 } },
 ];
+
+/* Slots added with the Zen garden, one colour per palette in palette order
+   (Meadow, Frost, Autumn, Blossom, Pinewood). Kept apart from the blocks above
+   so a pack's colours can be read, and changed, together. */
+const PACK_TINTS = {
+  lacquer: [0xC4452F, 0xA65A56, 0xB43E26, 0xD45A6C, 0xA8402E],
+  maple:   [0xC9452E, 0xB8747A, 0xD8601E, 0xE57A8E, 0xA43C2A],
+  paper:   [0xF2E6CC, 0xF2F2F0, 0xEEDAB4, 0xFBEFEA, 0xE6DECA],
+  raked:   [0xE4D8BC, 0xE6EAF0, 0xDCC69C, 0xF0E2D6, 0xD2C8AE],
+  moss:    [0x6A8A44, 0xA8BAB4, 0x82803A, 0x7EA05E, 0x4E7046],
+  koi:     [0xE9823A, 0xDA9470, 0xE2782A, 0xF2907C, 0xDD7A3A],
+};
+PALETTES.forEach((pal, i) => {
+  for (const slot in PACK_TINTS) {
+    pal.tint[slot] = PACK_TINTS[slot][i] !== undefined ? PACK_TINTS[slot][i] : PACK_TINTS[slot][0];
+  }
+});
 
 let C_SAND_WET, C_SAND, C_GRASS_A, C_GRASS_B, C_GRASS_HI, C_ROCK, C_PATH_A, C_PATH_B;
 /* Tilled earth. Fixed rather than per-season: turned soil looks like turned
@@ -2539,6 +2955,9 @@ const GLOW_SOURCES = {
   stall:       { color: 0xFFD08A, range: 4.5,  power: 0.8, height: 0.9 },
   barn:        { color: 0xFFC978, range: 5.5,  power: 0.9, height: 1.4 },
   shelter:     { color: 0xFFB070, range: 4.0,  power: 0.7, height: 0.9 },
+  stone_lantern:{ color: 0xFFCE86, range: 5.0,  power: 1.1, height: 0.7 },
+  tea_house:   { color: 0xFFC978, range: 5.5,  power: 1.0, height: 0.6 },
+  pagoda:      { color: 0xFFC978, range: 7.0,  power: 1.3, height: 1.4 },
 };
 
 /* A soft halo billboard at each source, so a lamp reads as glowing even when
@@ -2764,6 +3183,12 @@ const SURFACE = {
   sail:        { roughness: 0.92, metalness: 0.0 },
   fruit:       { roughness: 0.55, metalness: 0.0 },
   coral:       { roughness: 0.7,  metalness: 0.0 },
+  lacquer:     { roughness: 0.5,  metalness: 0.0 },   // painted wood keeps a little sheen
+  maple:       { roughness: 0.95, metalness: 0.0 },
+  paper:       { roughness: 0.92, metalness: 0.0 },
+  raked:       { roughness: 0.98, metalness: 0.0 },
+  moss:        { roughness: 0.99, metalness: 0.0 },
+  koi:         { roughness: 0.45, metalness: 0.0 },
 };
 
 function dressSurface(mat) {
@@ -3538,7 +3963,8 @@ function resolvePlacement(typeId, x, z) {
    agree, and putting something back where it was restores the angle it had. */
 const FREE_YAW = new Set(['pine', 'tree_round', 'palm', 'bush', 'flowers', 'rock',
   'jungle_tree', 'bamboo', 'fern', 'fruit_bush', 'jungle_flower',
-  'coral', 'driftwood', 'reeds', 'crate', 'barrel', 'pine_great', 'oak_great']);
+  'coral', 'driftwood', 'reeds', 'crate', 'barrel', 'pine_great', 'oak_great',
+  'sakura', 'maple', 'bonsai', 'moss_boulder', 'great_sakura']);
 const FIXED_YAW = new Set(['fence', 'path', 'field', 'clear', 'raise', 'lower', 'level']);
 
 function siteHash(x, z) {
@@ -3854,7 +4280,8 @@ const FLOATERS = {
 };
 const floaters = [];
 
-const SWAYERS = new Set(['pine', 'tree_round', 'bush', 'flowers', 'pine_great', 'oak_great']);
+const SWAYERS = new Set(['pine', 'tree_round', 'bush', 'flowers', 'pine_great', 'oak_great',
+                         'sakura', 'maple', 'great_sakura']);
 const swayers = [];
 
 function spawn(b) {
@@ -4535,7 +4962,8 @@ function updateHens(dt) {
   }
 }
 
-const GATHERING = ['stall', 'market_hall', 'well', 'fountain', 'gazebo', 'campfire', 'signal_fire', 'shelter', 'library', 'shrine', 'orchard'];
+const GATHERING = ['stall', 'market_hall', 'well', 'fountain', 'gazebo', 'campfire', 'signal_fire', 'shelter', 'library', 'shrine', 'orchard',
+                   'tea_house', 'pagoda', 'koi_pond'];
 
 /* --- birds ---------------------------------------------------------------
    A few always crossing the sky. Plant trees and they start coming down to
@@ -4545,6 +4973,7 @@ const BIRD_COLOURS = [0x3A3F4A, 0x6E4A38, 0x2E4B6E, 0x8A5A3C, 0x4E4438];
 const PERCH_HEIGHT = {
   pine: 1.55, tree_round: 1.35, palm: 2.30, jungle_tree: 3.15,
   pine_great: 3.05, oak_great: 2.75, bush: 0.55, fruit_bush: 0.7,
+  sakura: 1.45, maple: 1.35, great_sakura: 2.7,
 };
 const birds = [];
 const birdRoot = new THREE.Group();
@@ -4706,7 +5135,7 @@ function solidRadius(typeId) {
 const DOOR_OUT = {
   cottage: 1.25, cottage_tall: 1.15, bungalow: 1.30, manor: 1.60, tower: 1.35,
   windmill: 1.60, lighthouse: 1.45, barn: 1.45, castle: 2.30, shelter: 1.05,
-  stall: 1.20, market_hall: 1.90, library: 2.35,
+  stall: 1.20, market_hall: 1.90, library: 2.35, tea_house: 1.30,
 };
 
 function doorOf(b) {
@@ -6387,6 +6816,9 @@ const FOUND_METHOD = {
   pine_great: 'three pines',
   oak_great: 'three oaks',
   boulder: 'three rocks',
+  pagoda: 'three stone lanterns',
+  great_sakura: 'three cherry trees',
+  zen_garden: 'three runs of stepping stones',
 };
 
 /* What a locked entry says. Enough to know the kind of thing it is and roughly
@@ -6404,6 +6836,9 @@ const LOCKED_HINT = {
   pine_great: 'the woods',
   oak_great: 'the woods',
   boulder: 'the ground itself',
+  pagoda: 'somewhere quiet',
+  great_sakura: 'the blossom',
+  zen_garden: 'somewhere quiet',
 };
 
 function openFound() {
@@ -6682,6 +7117,9 @@ const RANKS = [
                                           'signpost', 'stall'] },
   { at: 2800,  name: 'Harbour',   opens: ['shelter', 'raft', 'crate', 'barrel', 'torch',
                                           'fish_rack', 'palm', 'reeds', 'driftwood', 'coral'] },
+  { at: 4000,  name: 'Blossom',   opens: ['sakura', 'maple', 'bonsai', 'stone_lantern', 'torii',
+                                          'koi_pond', 'arch_bridge', 'raked_sand', 'stepping_stones',
+                                          'moss_boulder', 'water_basin', 'tea_house'] },
   { at: 5200,  name: 'Village',   opens: ['windmill', 'lighthouse', 'radio'] },
   { at: 8200,  name: 'Wildwood',  opens: ['jungle_tree', 'bamboo', 'fern', 'fruit_bush',
                                           'jungle_flower', 'totem'] },
@@ -7812,6 +8250,11 @@ const BOOT = [
     PROTOTYPES[k] = parseGLB(MODELS[k]);
     MODEL_REACH[k] = measureReach(PROTOTYPES[k]).reach;
   }
+    // Then the pieces the kit builds in code, measured the same way.
+    for (const k in KIT_MODELS) {
+      PROTOTYPES[k] = KIT_MODELS[k]();
+      MODEL_REACH[k] = measureReach(PROTOTYPES[k]).reach;
+    }
   }],
   ['Shaping the island', () => {
     if (!loadGame()) {

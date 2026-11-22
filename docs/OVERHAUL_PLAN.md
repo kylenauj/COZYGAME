@@ -20,7 +20,7 @@ The overhaul should build on what exists rather than replace it with the prompt'
 | Terrain sculpt: raise, lower, level, path, field, clear | `LAND_TOOLS` L894, `sculpt` | ✅ |
 | Auto-terracing under buildings, tilt into slopes | `CATALOGUE` flags L830 | ✅ |
 | **Merge mechanic** (3 cottages → manor, 3 manors → castle, 12 recipes) | `MERGED` L876, `tryMerge` L3608 | ✅ The game's signature hook |
-| 42 placeable + 15 merged = **57 models** | `MODELS` L796 (base64 GLB) | ⚠️ Far short of 150 |
+| 54 placeable + 18 merged = **72 models** (57 baked GLB + 15 kit-built) | `MODELS`, `KIT_MODELS` | ⚠️ Still short of 150 |
 | 5 palettes / seasons (Meadow, Frost, Autumn, Blossom, Pinewood) that retint shared material slots | `PALETTES` L1403, `TINTABLE` | ✅ A cheap, clever way to retheme |
 | Rank ladder: 7 ranks unlock catalogue groups by charm | `RANKS` L6448 | ⚠️ Ends at 12,500 charm, and can be exploited |
 | Scoring: +10 per placement, +50/+25 for Forest/Village clusters | `scoreFor` L994 | ⚠️ Flat, and knows nothing about themes |
@@ -214,10 +214,18 @@ accent. This sits in shared storage (`SHARED_KEY`), like discoveries do now.
    pop-in and leaf/dust puff on placing, merging and removing, a knock pitched by size that steps
    up a pentatonic scale through quick runs, redo (Ctrl+Y, Ctrl+Shift+Z, touch button), and an
    eyedropper (click anything built with nothing in hand).
-3. **Model kit.** Add a procedural builder registry with the shared material slots, and prove it by
-   rebuilding one existing model in it to compare.
-4. **Theme pack 1: Zen Garden** (pairs with the Blossom palette). This proves the whole pipeline:
-   models → theme → merges → cluster label → ranks.
+3. **Model kit.** ✅ *Done:* `kitModel()` builds pieces from bottom-anchored primitives, merged
+   into one flat-shaded mesh per named material slot (the same shape parseGLB produces). Slots are
+   shared and registered in `TINTABLE`, so palettes retint them; `window_lit`/`flame` glow at
+   night; a `footing` part controls slope extrusion; `jitter` roughens organic shapes without
+   tearing. New slots get per-palette colours in one `PACK_TINTS` table. `KIT_MODELS` is built at
+   boot next to the GLBs.
+4. **Theme pack 1: Zen Garden.** ✅ *Done:* 12 placeables (tea house, gate, stone lantern, koi
+   pond, red bridge, cherry tree, maple, bonsai, raked sand, stepping stones, mossy stone, bamboo
+   spout) and 3 merges (3 lanterns → pagoda, 3 cherries → old cherry, 3 stepping stones → stone
+   garden), opening at a new **Blossom** rank (4,000). Wired into themes, toolbar, glow, sway, bird
+   perches, villager gathering spots and Discoveries. Total models: 72. *Cluster labels* wait for
+   step 5's harmony scoring.
 5. **Harmony scoring and theme titles**, plus the tooltip breakdown.
 6. **Extended ranks and archipelago rank.** Slot unlocks.
 7. **Collection Book** with golden variants.
