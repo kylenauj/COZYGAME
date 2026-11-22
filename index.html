@@ -363,6 +363,7 @@ body.is-photo .naujmark{display:none}
 .link-button:hover{color:var(--honey)}
 .scorepops{position:fixed;inset:0;z-index:3;pointer-events:none}
 .scorepop--big{font-size:1.35rem;color:#FFD98A}
+.scorepop--back{color:#E8D9C4;opacity:.7;font-weight:400}
 .scorepop--note{font-size:1.25rem;color:#F6E7C8;font-weight:400;opacity:.85}
 .scorepop{position:absolute;top:0;left:0;font-family:var(--font-ui);font-weight:600;
   font-size:1.05rem;color:#FFE2A8;text-shadow:0 2px 10px rgba(12,26,31,.85),0 0 3px rgba(12,26,31,.9);
@@ -903,12 +904,75 @@ const LAND_TOOLS = [
 const BY_ID = Object.fromEntries(CATALOGUE.concat(MERGED).map(b => [b.id, b]));
 const TOOLS = CATALOGUE.concat(MERGED).concat(LAND_TOOLS)
   .concat([{id:'eraser', name:'Remove', hint:'Click a building to take it away.'}]);
+
+/* --- themes ---------------------------------------------------------------
+
+   Every piece belongs to one theme. Nothing reads this for scoring yet; it is
+   the ground the later work stands on — theme groups in the toolbar, harmony
+   between neighbours of a kind, a collection page per theme. Kept as one table
+   rather than a field on sixty rows, so a theme can be read at a glance and a
+   new piece cannot slip in without one (see the check below).
+
+   'utility' is the odd one out: fences, lamps, benches and signs belong on any
+   island and will count as neutral, never against a theme. */
+const THEMES = {
+  village:  { name: 'Village',  ids: ['cottage', 'cottage_tall', 'well', 'farm', 'stall', 'windmill',
+                                     'tree_round', 'bush', 'flowers',
+                                     'manor', 'tower', 'castle', 'fountain', 'garden',
+                                     'market_hall', 'barn', 'oak_great'] },
+  shore:    { name: 'Shore',    ids: ['bungalow', 'palm', 'reeds', 'driftwood', 'coral', 'shelter',
+                                     'raft', 'crate', 'barrel', 'torch', 'fish_rack', 'lighthouse',
+                                     'signal_fire'] },
+  wildwood: { name: 'Wildwood', ids: ['pine', 'rock', 'campfire', 'pine_great', 'boulder'] },
+  jungle:   { name: 'Jungle',   ids: ['jungle_tree', 'bamboo', 'fern', 'fruit_bush', 'jungle_flower',
+                                     'totem', 'bamboo_grove', 'orchard', 'shrine'] },
+  scholar:  { name: 'Reading',  ids: ['library', 'great_tome', 'book_pile', 'book_scatter',
+                                     'observatory', 'radio', 'lantern', 'gazebo'] },
+  utility:  { name: 'Utility',  ids: ['fence', 'lamp', 'bench', 'signpost'] },
+};
+for (const key in THEMES) {
+  for (const id of THEMES[key].ids) if (BY_ID[id]) BY_ID[id].theme = key;
+}
+// A piece with no theme is a mistake in the table above, not a design choice.
+for (const id in BY_ID) {
+  if (!BY_ID[id].theme) console.warn('Cozy Island: ' + id + ' has no theme');
+}
+
 /* Points.
 
    Flat +10 for anything you place, then a bonus when a placement completes
    something bigger than itself. Simple enough to read off the screen without
-   a legend. */
+   a legend.
+
+   What a building earned is written on the building (`pts`), and comes back
+   off when you take it away. Before this, removing never cost anything, so
+   setting a rock down and picking it up again climbed every rank in minutes
+   and the ladder meant nothing. Favours and secrets are kept for good: they
+   were earned once and cannot be earned twice. */
 const PLACE_POINTS = 10;
+const MERGE_POINTS = 50;          // each merge; the first of a kind pays double
+const DISCOVER_POINTS = 100;
+
+/* The only way charm goes up. Ranks read the island's best-ever charm rather
+   than today's, so clearing a corner to rebuild it never locks away something
+   already earned. */
+function addCharm(n) {
+  state.charm += n;
+  if (state.charm > (state.peak || 0)) state.peak = state.charm;
+}
+
+function takeCharm(n) {
+  state.charm = Math.max(0, state.charm - (n || 0));
+}
+
+/* What a building is worth when it has no record of its own: anything saved
+   before buildings carried their points. A merged form counts its three parts
+   and the merge, so a castle carries everything that went into it. */
+function pointsHeld(typeId, depth) {
+  const from = CATALOGUE.concat(MERGED).find(d => d.mergeInto === typeId);
+  if (!from || (depth || 0) > 4) return PLACE_POINTS;
+  return 3 * pointsHeld(from.id, (depth || 0) + 1) + MERGE_POINTS;
+}
 const TREE_KINDS = ['pine', 'tree_round', 'palm', 'jungle_tree', 'bush', 'fruit_bush',
                     'pine_great', 'oak_great'];
 const FOREST_NEED = 4, FOREST_RADIUS = 6.0;
@@ -1965,6 +2029,13 @@ function slotSummary(i) {
 }
 
 const SAVE_KEY = slotKey(0);   // kept for anything still referring to it
+
+/* Written into every save from here on, so a later change to the format can
+   tell what it is reading instead of guessing from which fields are missing.
+   Saves with no number are the v4 slots from before; they still load, and are
+   brought forward in loadGame. Keys stay cozy-island:v4:* so nothing is
+   orphaned the way the move to slots once orphaned the single save. */
+const SAVE_VERSION = 5;
 const state = {
   screen: 'menu',
   selected: null,
@@ -1972,6 +2043,7 @@ const state = {
   seed: 1,
   paletteIndex: 0,
   charm: 0,
+  peak: 0,           // best charm this island has reached; ranks read this
   paused: false,
   secrets: {},
   done: {},
@@ -1993,6 +2065,7 @@ const state = {
 function saveShared() {
   try {
     localStorage.setItem(SHARED_KEY, JSON.stringify({
+      saveVersion: SAVE_VERSION,
       unlocked: state.unlocked, secrets: state.secrets, settings: state.settings,
     }));
   } catch (e) { /* storage full or blocked; the island still works */ }
@@ -2013,9 +2086,11 @@ function saveGame() {
   saveShared();
   try {
     localStorage.setItem(slotKey(activeSlot), JSON.stringify({
+      saveVersion: SAVE_VERSION,
       name: isAutoName(state.islandName) ? '' : state.islandName,
       saved: Date.now(),
       seed: state.seed, paletteIndex: state.paletteIndex, charm: state.charm,
+      peak: Math.max(state.peak || 0, state.charm),
       unlocked: state.unlocked, secrets: state.secrets, done: state.done,
       placed: state.placed, fields,
       timeOfDay: dayPhase,
@@ -2068,6 +2143,11 @@ function loadGame() {
     state.seed = d.seed || 1;
     state.paletteIndex = d.paletteIndex || 0;
     state.charm = d.charm || 0;
+    state.peak = Math.max(d.peak || 0, state.charm);
+    /* Favours already done on this island. These were saved but never read
+       back, so after a reload a finished request could be asked, and paid,
+       a second time. */
+    state.done = d.done || {};
     const stored = (function () {
       try { return localStorage.getItem(NAME_KEY + ':' + activeSlot) || ''; }
       catch (e) { return ''; }
@@ -2088,6 +2168,12 @@ function loadGame() {
     paths = d.paths || {};
     fields = d.fields || {};
     state.buildings = (d.buildings || []).filter(b => BY_ID[b.typeId]);
+    // Before version 5 buildings carried no record of their points. Give each
+    // what it would have earned, so removing an old cottage costs the same as
+    // removing a new one.
+    for (const b of state.buildings) {
+      if (typeof b.pts !== 'number') b.pts = pointsHeld(b.typeId);
+    }
     Object.assign(state.settings, d.settings || {});
     terrainDirty = true;
     return true;
@@ -2111,6 +2197,8 @@ function switchSlot(i) {
     // the New island button, not here.
     state.paletteIndex = (state.paletteIndex + 1) % PALETTES.length;
     state.charm = 0;
+    state.peak = 0;
+    state.done = {};
     state.placed = 0;
     state.islandName = '';
     try { localStorage.removeItem(ISLAND_KEY + ':' + i); } catch (e) { /* ignore */ }
@@ -2209,6 +2297,8 @@ function newIsland(seasonIndex) {
     ? (state.paletteIndex + 1) % PALETTES.length
     : seasonIndex;
   state.charm = 0;   // discoveries persist across islands
+  state.peak = 0;
+  state.done = {};   // favours belong to the island they were done for
   state.placed = 0;
   applyPalette(state.paletteIndex);
   LANDFORMS = generateLandforms(state.seed);
@@ -3530,6 +3620,11 @@ function tryMerge(placed) {
 
   for (const t of trio) removeBuilding(t.uid, true);
   const merged = addBuilding(plan.into, plan.cx, plan.cz, placed.rot, true);
+  // The new form carries its parts' points and the merge's, so taking it away
+  // later gives back exactly what building it gave. The first-discovery extra
+  // stays with the player: it can only ever happen once.
+  merged.pts = trio.reduce((sum, t) => sum + (t.pts !== undefined ? t.pts : pointsHeld(t.typeId)), 0)
+             + MERGE_POINTS;
   const obj = placedRoot.children.find(c => c.userData.uid === merged.uid);
   if (obj) { obj.scale.setScalar(0.01); popping.push({ obj, t: 0 }); }
 
@@ -3537,8 +3632,8 @@ function tryMerge(placed) {
   // the bonus and the fanfare. Calling it twice would swallow the discovery.
   const first = unlock(plan.into);
   sound(first ? 'discover' : 'merge');
-  state.charm += first ? 100 : 50;
-  popScore(first ? 100 : 50,
+  addCharm(first ? DISCOVER_POINTS : MERGE_POINTS);
+  popScore(first ? DISCOVER_POINTS : MERGE_POINTS,
            first ? 'Discovered!' : 'Merged!',
            plan.cx, terrainHeight(plan.cx, plan.cz) + 1.8, plan.cz);
   if (first) { buildGroups(); buildToolbar(); }
@@ -3750,6 +3845,13 @@ function handleClick(e) {
       remember('removing the ' + (doomed && BY_ID[doomed.typeId]
         ? BY_ID[doomed.typeId].name.toLowerCase() : 'piece'));
       sound('remove');
+      if (doomed) {
+        const back = doomed.pts !== undefined ? doomed.pts : pointsHeld(doomed.typeId);
+        takeCharm(back);
+        if (back > 0) {
+          popScore(-back, '', doomed.x, terrainHeight(doomed.x, doomed.z) + 1.1, doomed.z);
+        }
+      }
       removeBuilding(hits[0].object.userData.uid);
     }
     return;
@@ -3812,7 +3914,10 @@ function placeAtHover(e) {
   const placed = addBuilding(state.selected, hover.x, hover.z, placeYaw(state.selected, hover.x, hover.z));
 
   const award = scoreFor(placed.typeId, placed.x, placed.z);
-  state.charm += award.points;
+  // Kept on the building, cluster bonus included: otherwise lifting the fourth
+  // tree and setting it back would pay out 'Forest!' again every time.
+  placed.pts = award.points;
+  addCharm(award.points);
   popScore(award.points, award.label, placed.x, terrainHeight(placed.x, placed.z) + 1.1, placed.z);
 
   // Hold Alt to drop something next to its own kind without fusing, so a dense
@@ -4826,7 +4931,7 @@ function updateRequests(dt) {
     if (done) {
       state.done = state.done || {};
       state.done[request.kind.id] = 1;
-      state.charm += request.kind.reward;
+      addCharm(request.kind.reward);
       popScore(request.kind.reward, 'Thank you',
                request.x, terrainHeight(request.x, request.z) + 1.6, request.z);
       cheerNear(request.x, request.z);
@@ -5733,7 +5838,7 @@ function checkSecrets(dt) {
     try { hit = secret.test(); } catch (e) { hit = false; }
     if (!hit) continue;
     state.secrets[secret.id] = 1;
-    state.charm += secret.points;
+    addCharm(secret.points);
     const at = rig.target;
     popScore(secret.points, secret.name, at.x, terrainHeight(at.x, at.z) + 3.2, at.z);
     renderCount();
@@ -6196,6 +6301,8 @@ function clearSlot(i) {
     // Standing on it: start something fresh rather than showing a ghost.
     state.buildings = [];
     state.charm = 0;
+    state.peak = 0;
+    state.done = {};
     state.placed = 0;
     state.islandName = '';
     newIsland();
@@ -6361,7 +6468,11 @@ function rankIndex(charm) {
   return k;
 }
 
-function rankOf() { return RANKS[rankIndex(state.charm)]; }
+/* Ranks follow the best this island has ever been, not where it stands this
+   minute, so taking things away to rebuild never closes what was opened. */
+const rankCharm = () => Math.max(state.charm, state.peak || 0);
+
+function rankOf() { return RANKS[rankIndex(rankCharm())]; }
 
 /* What rank does a given thing need? Anything not named in a rank's list is
    available from the start, so adding a new piece never silently locks it. */
@@ -6372,21 +6483,21 @@ function unlockedAt(id) { return RANK_FOR[id] === undefined ? 0 : RANK_FOR[id]; 
 function isUnlocked(id) {
   // Merged forms follow their own discovery, not the rank ladder.
   if (MERGED.some(m => m.id === id)) return !!state.unlocked[id];
-  return rankIndex(state.charm) >= unlockedAt(id);
+  return rankIndex(rankCharm()) >= unlockedAt(id);
 }
 
 /* How far to the next rank, as a share. */
 function rankProgress() {
-  const i = rankIndex(state.charm);
+  const i = rankIndex(rankCharm());
   if (i >= RANKS.length - 1) return 1;
   const from = RANKS[i].at, to = RANKS[i + 1].at;
-  return clamp01((state.charm - from) / (to - from));
+  return clamp01((rankCharm() - from) / (to - from));
 }
 
 /* Watch for the moment it ticks over. */
 let lastRank = -1;
 function checkRank(announce) {
-  const i = rankIndex(state.charm);
+  const i = rankIndex(rankCharm());
   if (i === lastRank) return;
   const first = lastRank < 0;
   const gained = RANKS[i];
@@ -6407,7 +6518,7 @@ function renderRank() {
   const el = document.getElementById('hud-rank');
   if (!el) return;
   const r = rankOf();
-  const i = rankIndex(state.charm);
+  const i = rankIndex(rankCharm());
   el.textContent = r.name;
   const bar = document.getElementById('hud-rank-bar');
   if (bar) bar.style.width = Math.round(rankProgress() * 100) + '%';
@@ -6415,7 +6526,7 @@ function renderRank() {
   if (next) {
     next.textContent = i >= RANKS.length - 1
       ? ''
-      : (RANKS[i + 1].at - state.charm).toLocaleString() + ' to ' + RANKS[i + 1].name;
+      : (RANKS[i + 1].at - rankCharm()).toLocaleString() + ' to ' + RANKS[i + 1].name;
   }
 }
 
@@ -6542,7 +6653,10 @@ function popScore(points, label, x, y, z) {
   if (!layer) return;
   const el = document.createElement('div');
   el.className = 'scorepop' + (label ? ' scorepop--big' : '');
-  el.textContent = label ? '+' + points + ' ' + label : '+' + points;
+  // Taking something away shows what it gave back, quietly, in a minus sign.
+  const sign = points < 0 ? '\u2212' + (-points) : '+' + points;
+  if (points < 0) el.classList.add('scorepop--back');
+  el.textContent = label ? sign + ' ' + label : sign;
   layer.appendChild(el);
   pops.push({ el, pos: new THREE.Vector3(x, y, z), t: 0 });
 }

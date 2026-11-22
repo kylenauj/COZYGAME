@@ -1,8 +1,8 @@
 # Cozy Island: applying the master prompt to the current code
 
 This document compares the current game with [`COZY_ISLAND_MASTER_PROMPT.md`](./COZY_ISLAND_MASTER_PROMPT.md)
-and turns that comparison into a concrete overhaul plan. The game today is `cozy-island (23).html`:
-one 7,494-line, 1.6 MB file in which 1.25 MB is embedded base64 GLB models.
+and turns that comparison into a concrete overhaul plan. The game is `index.html` (formerly `cozy-island (23).html`):
+one 7,600-line, 1.6 MB file in which 1.25 MB is embedded base64 GLB models.
 
 The short version: **this game already has a better foundation than the generic prompt assumes.**
 Its organic sculptable terrain, its merge mechanic and its living villagers are real strengths. What
@@ -16,21 +16,21 @@ The overhaul should build on what exists rather than replace it with the prompt'
 
 | System | Where | State |
 |---|---|---|
-| Seeded organic islands (hills, mesas, bays, a cape) | `generateLandforms` ~L1153 | ✅ Strong. Better than a tile grid for this game |
-| Terrain sculpt: raise, lower, level, path, field, clear | `LAND_TOOLS` L893, `sculpt` | ✅ |
-| Auto-terracing under buildings, tilt into slopes | `CATALOGUE` flags L829 | ✅ |
-| **Merge mechanic** (3 cottages → manor, 3 manors → castle, 12 recipes) | `MERGED` L875, `tryMerge` L3518 | ✅ The game's signature hook |
-| 42 placeable + 15 merged = **57 models** | `MODELS` L795 (base64 GLB) | ⚠️ Far short of 150 |
-| 5 palettes / seasons (Meadow, Frost, Autumn, Blossom, Pinewood) that retint shared material slots | `PALETTES` L1339, `TINTABLE` | ✅ A cheap, clever way to retheme |
-| Rank ladder: 7 ranks unlock catalogue groups by charm | `RANKS` L6341 | ⚠️ Ends at 12,500 charm, and can be exploited |
-| Scoring: +10 per placement, +50/+25 for Forest/Village clusters | `scoreFor` L930 | ⚠️ Flat, and knows nothing about themes |
-| Requests: 10 kinds, one at a time, every 4 to 5 minutes | `REQUEST_KINDS` L4739 | ⚠️ Anonymous villagers, charm-only rewards |
-| 13 hidden secrets, Discoveries screen, one-time nudges | `SECRETS` L5588, `openFound` L6078 | ✅ |
-| Living world: pathing villagers, hens, birds, cats, gulls, fish, a bear, a librarian, a reader | L3039 to L4715 | ✅ Very rich |
+| Seeded organic islands (hills, mesas, bays, a cape) | `generateLandforms` L1217 | ✅ Strong. Better than a tile grid for this game |
+| Terrain sculpt: raise, lower, level, path, field, clear | `LAND_TOOLS` L894, `sculpt` | ✅ |
+| Auto-terracing under buildings, tilt into slopes | `CATALOGUE` flags L830 | ✅ |
+| **Merge mechanic** (3 cottages → manor, 3 manors → castle, 12 recipes) | `MERGED` L876, `tryMerge` L3608 | ✅ The game's signature hook |
+| 42 placeable + 15 merged = **57 models** | `MODELS` L796 (base64 GLB) | ⚠️ Far short of 150 |
+| 5 palettes / seasons (Meadow, Frost, Autumn, Blossom, Pinewood) that retint shared material slots | `PALETTES` L1403, `TINTABLE` | ✅ A cheap, clever way to retheme |
+| Rank ladder: 7 ranks unlock catalogue groups by charm | `RANKS` L6448 | ⚠️ Ends at 12,500 charm, and can be exploited |
+| Scoring: +10 per placement, +50/+25 for Forest/Village clusters | `scoreFor` L994 | ⚠️ Flat, and knows nothing about themes |
+| Requests: 10 kinds, one at a time, every 4 to 5 minutes | `REQUEST_KINDS` L4844 | ⚠️ Anonymous villagers, charm-only rewards |
+| 13 hidden secrets, Discoveries screen, one-time nudges | `SECRETS` L5693, `openFound` L6183 | ✅ |
+| Living world: pathing villagers, hens, birds, cats, gulls, fish, a bear, a librarian, a reader | L3945 to L5621 | ✅ Very rich |
 | Day/night (4 min), rain/snow, fireflies, lamp-glow pool | | ✅ |
-| WebAudio SFX, ambient music, radio | `SOUNDS` L6972 | ✅ |
-| 3 island save slots, shared discoveries, legacy migration | `SLOT_COUNT` L1938 | ✅ |
-| 30-step snapshot undo (including terrain) | `HISTORY_MAX` L7125 | ✅ No redo |
+| WebAudio SFX, ambient music, radio | `SOUNDS` L7086 | ✅ |
+| 3 island save slots, shared discoveries, legacy migration | `SLOT_COUNT` L2002 | ✅ |
+| 30-step snapshot undo (including terrain) | `HISTORY_MAX` L7239 | ✅ No redo |
 | Photo mode, leaderboard (`leaderboard.php`), touch controls | | ✅ |
 
 ## 2. Where the master prompt should bend to fit this game
@@ -52,8 +52,8 @@ The overhaul should build on what exists rather than replace it with the prompt'
 ## 3. Critical issues to fix before adding content
 
 ### 3.1 Charm can be farmed ⚠️ (breaks all progression)
-`placeAtHover` (L3806) adds `+10` to `state.charm`, but the eraser path in `handleClick`
-(L3740 → `removeBuilding` L3697) **never subtracts it**. Placing and removing the same rock climbs
+`placeAtHover` (L3908) adds `+10` to `state.charm`, but the eraser path in `handleClick`
+(L3835 → `removeBuilding` L3792) **never subtracted it** (fixed in step 1). Placing and removing the same rock climbs
 every rank in minutes, so any progression built on charm is hollow until this is fixed.
 
 **Fix:** store the points each building earned on the building itself (`b.pts`). Subtract them on
@@ -93,11 +93,12 @@ Details, Ground, Tools, plus a hidden Reading shelf. The catalogue has no `theme
 
 | Theme | Existing models | Merge recipes already present |
 |---|---|---|
-| 🏡 Village | cottage, cottage_tall, bungalow, well, stall, windmill, farm, bench, signpost, fence, lamp, flowers, bush, tree_round | cottage→manor→castle, townhouse→tower, well→fountain, stall→market hall, farm→barn, flowers→garden, oak→great oak |
-| 🏖️ Castaway Shore | palm, shelter, raft, crate, barrel, torch, fish_rack, coral, driftwood, reeds, lighthouse | torch→signal fire |
+| 🏡 Village | cottage, cottage_tall, well, stall, windmill, farm, flowers, bush, tree_round | cottage→manor→castle, townhouse→tower, well→fountain, stall→market hall, farm→barn, flowers→garden, oak→great oak |
+| 🏖️ Castaway Shore | bungalow, palm, shelter, raft, crate, barrel, torch, fish_rack, coral, driftwood, reeds, lighthouse | torch→signal fire |
 | 🌲 Wildwood | pine, rock, campfire, fern | pine→great pine, rock→boulder |
 | 🌴 Jungle | jungle_tree, bamboo, fruit_bush, jungle_flower, totem | bamboo→stand, fruit bush→orchard, totem→shrine |
-| 📚 Scholar (hidden) | library, great_tome, book_pile, book_scatter, observatory, radio, lantern | lantern→gazebo |
+| 📚 Reading (hidden) | library, great_tome, book_pile, book_scatter, observatory, radio, lantern | lantern→gazebo |
+| 🧰 Utility (neutral) | fence, lamp, bench, signpost | none |
 
 **Add:**
 1. `theme` and `tags` fields on every `CATALOGUE`/`MERGED` row. Make toolbar groups theme-first
@@ -119,7 +120,7 @@ Glowing pieces plug into the existing `GLOW_SOURCES` and lamp pool. Floaters use
 swaying pieces use `SWAYERS`.
 
 ### 4.2 Scoring: from flat points to theme harmony
-**Have:** `scoreFor` L930 gives +10, plus a one-off +50 for a Forest or Village cluster.
+**Have:** `scoreFor` L994 gives +10, plus a one-off +50 for a Forest or Village cluster.
 
 **Change** (keeping it legible, in the spirit of the existing comment *"simple enough to read off
 the screen"*):
@@ -146,10 +147,10 @@ the ladder then ends.
 - Add an **archipelago rank** computed from charm summed across all islands. New islands unlock
   there, so the long game spans islands.
 - Keep the existing good choice of showing locked chips with the rank that opens them
-  (`buildToolbar` L6439).
+  (`buildToolbar` L6550).
 
 ### 4.4 Collection Book (extend Discoveries)
-**Have:** `openFound` L6078 lists merged forms and secrets.
+**Have:** `openFound` L6183 lists merged forms and secrets.
 
 **Change:** turn it into tabbed pages, one per theme. Each page shows every object (a silhouette
 until first placed), that theme's merge results, and its secrets. Completing a page (placing every
@@ -185,13 +186,13 @@ accent. This sits in shared storage (`SHARED_KEY`), like discoveries do now.
 ### 4.7 Placement UX and feel
 | Missing | Suggestion | Hook |
 |---|---|---|
-| Toolbar is text-only | Render each prototype once at boot to a 96 px offscreen canvas; use it as the chip icon | `buildToolbar` L6439 |
-| No pop-in on placement (only merges animate) | Scale 0 → 1.12 → 1 elastic over 250 ms, a leaf or sparkle puff, pitch-randomised `place` sound | `spawn` L3580, `SOUNDS.place` |
-| No redo | Keep a redo stack beside `history`, cleared on new actions | `undoLast` L7168 |
-| No eyedropper | Alt-click or long-press a placed object to select its type | `handleClick` L3740 |
+| Toolbar is text-only | Render each prototype once at boot to a 96 px offscreen canvas; use it as the chip icon | `buildToolbar` L6550 |
+| No pop-in on placement (only merges animate) | Scale 0 → 1.12 → 1 elastic over 250 ms, a leaf or sparkle puff, pitch-randomised `place` sound | `spawn` L3675, `SOUNDS.place` |
+| No redo | Keep a redo stack beside `history`, cleared on new actions | `undoLast` L7282 |
+| No eyedropper | Alt-click or long-press a placed object to select its type | `handleClick` L3835 |
 | No per-object recolour | Swatch row of 3 to 5 variants per piece (cached variant materials) | §4.4 note |
 | Fences don't connect | Auto-align a new fence's yaw to the nearest fence end within ~1.2 units | `settleYaw` |
-| Too many items for tabs alone | Search box plus "recent" row in the build bar | `GROUPS` L957 |
+| Too many items for tabs alone | Search box plus "recent" row in the build bar | `GROUPS` L1021 |
 | No small-on-surface stacking | Later phase: `surface:true` pieces (stall, bench, picnic table) accept `small:true` props on top | `resolvePlacement` |
 
 ### 4.8 Saves
@@ -205,8 +206,10 @@ accent. This sits in shared storage (`SHARED_KEY`), like discoveries do now.
 
 ## 5. Implementation roadmap (PR-sized steps)
 
-1. **Foundation.** Rename to `index.html`. Restore or recreate the build split. Add `saveVersion`.
-   Fix the charm exploit with `b.pts`. Add a `theme` field to all 57 entries.
+1. **Foundation.** ✅ *Done:* renamed to `index.html`, added `SAVE_VERSION` 5 with a v4 migration,
+   fixed the charm exploit (`b.pts`, `addCharm`/`takeCharm`, ranks follow the island's peak charm),
+   loaded `state.done` back per island, and tagged all 57 entries with a theme (`THEMES` table).
+   *Still open:* restoring or recreating the build split (§3.2, §3.3).
 2. **Feel.** Chip thumbnails, pop-in animation and sounds, redo, eyedropper.
 3. **Model kit.** Add a procedural builder registry with the shared material slots, and prove it by
    rebuilding one existing model in it to compare.
