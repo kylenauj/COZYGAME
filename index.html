@@ -382,6 +382,18 @@ body.is-photo .photo-exit{opacity:1;pointer-events:auto}
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .photo-exit button:hover{background:var(--honey);color:#21160c}
 .hud-fps{font-variant-numeric:tabular-nums}
+.hud-title{margin-left:12px;font-family:var(--font-display,serif);font-style:italic;font-size:.82rem;
+  color:var(--sand);opacity:.85;text-shadow:0 1px 8px rgba(12,26,31,.6)}
+.hud-title:empty{display:none}
+/* A note that follows the pointer over something already built. */
+.inspect{position:fixed;z-index:4;pointer-events:none;padding:6px 10px;border-radius:10px;
+  background:var(--ink-glass);border:1px solid var(--hairline);color:var(--sand);
+  font-family:var(--font-ui);font-size:.74rem;line-height:1.35;white-space:nowrap;
+  opacity:0;transform:translate(14px,14px);transition:opacity 160ms var(--ease)}
+.inspect.is-on{opacity:1}
+.inspect b{font-weight:600;color:var(--honey)}
+.inspect i{font-style:normal;opacity:.7}
+body.is-photo .inspect{display:none}
 .hud-count{font-size:.78rem;color:rgba(248,238,220,.75);text-shadow:0 1px 8px rgba(12,26,31,.6)}
 
 /* The reading shelf. Slides in from the left, and is never mentioned anywhere
@@ -574,6 +586,7 @@ body.bar-away .buildbar-wrap{transform:translate(-50%,calc(100% + 20px))}
 <div class="warmth" id="warmth"></div>
 
 <div class="scorepops" id="scorepops"></div>
+<div class="inspect" id="inspect" aria-hidden="true"></div>
 
 <button type="button" class="naujmark" id="naujmark" aria-label="Back to kylenauj.com">
   <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAAAmCAYAAAA7mZ5JAAABv0lEQVR42u1a2w3DIAyskVfIAp2ko2eSLJAh2i+kCCWAXxhU+7cUm/P5HB7wCjOz9/n5tsZAwKQD7rHt0PNbOQcGlDTGlnZsO1z/9z4/3yfA7wwD2HtQR/mHf2OrVQw1CarFAsFW/cRS5oBZQfcG9s5/bY48Po/piX+KJkxtWhYyRJWSFuNVmnDv4rSZaiVDec4WizMhKEyWrBElmSzHU4DLc5efcb3+y0+/nuRQwbQC/7YCJFLA0b6afvYmtJcgHKkaYce2A2pPqL2rlCR6NJs5iUYPp9wmbK3LHpa0GG8NyqwyIq205Bms96Zr+QoIk1dmWq1kowICQFUM0ugAVmmmQysgQPHbuCVJoDPLFjfG6xHJ0ARQHa5QNbP2pyt28RnqTKxIgFPFZF+4EitHsJN6BC+tHJQEKj3CpvqyYqnWkQgnNrQO1iIJVv/12M8s9y6Ie1XKuSiy6BmlauBK4F5vzqh3CJ7NuBYDckv6KaMt5+UdAudFwdMV5iygUvyLKiADKLm7pb6/WQVYdg+ggmklBasD22vQkomZ9XUGfVdJgHRx/8JWkwT0PmoKYG0MNRYawBpsxALUCSQowLW3Hx7umsOOxcf5AAAAAElFTkSuQmCC" alt="Nauj">
@@ -756,6 +769,7 @@ body.bar-away .buildbar-wrap{transform:translate(-50%,calc(100% + 20px))}
           <span class="hud-rank-next" id="hud-rank-next"></span>
         </span>
         <span class="hud-charm" id="hud-charm">0 points</span>
+        <span class="hud-title" id="hud-title"></span>
     </div>
     <div class="touchpad" id="touchpad">
       <button type="button" class="tbtn" id="t-rotate" aria-label="Turn the piece">
@@ -1009,41 +1023,130 @@ function pointsHeld(typeId, depth) {
 const TREE_KINDS = ['pine', 'tree_round', 'palm', 'jungle_tree', 'bush', 'fruit_bush',
                     'sakura', 'maple', 'great_sakura',
                     'pine_great', 'oak_great'];
-const FOREST_NEED = 4, FOREST_RADIUS = 6.0;
-const TOWN_NEED = 4, TOWN_RADIUS = 8.0;
+/* --- harmony -------------------------------------------------------------
 
-function countNear(x, z, radius, match) {
+   A flat ten for everything meant a rock in a field scored the same as the
+   last lantern in a finished garden, and nothing about the score said "build
+   things that belong together". Now a placement is worth:
+
+     size     5 for a small prop, 10 for a medium piece, 20 for a building,
+              40 for a merged form set down directly;
+   × harmony  how many pieces of the SAME theme already stand within six
+              units: ×1 alone, ×1.25 beside two, ×1.5 beside four, ×2 beside
+              seven. Utility pieces (fences, lamps, benches, signs) belong
+              everywhere, so they neither earn harmony nor spoil it;
+   × variety  the tenth pine on an island is worth less than the first:
+              ten per cent off for each one already standing, down to 40%.
+
+   And once, where a theme gathers, a cluster: six of a theme close together
+   names the place and pays 50, twelve pays 100. Whichever piece tipped it
+   holds the bonus (`b.tier`), and no second piece can earn the same tier while
+   a holder stands nearby — otherwise lifting and resetting any member of a
+   cluster would pay its bonus again, once for every piece in it.
+
+   Everything is written onto the building and given back when it goes, as
+   before, so none of this can be farmed by setting things down and picking
+   them up. */
+const HARMONY_RADIUS = 6.0;
+const HARMONY_STEPS = [[7, 2.0], [4, 1.5], [2, 1.25], [0, 1.0]];
+const CLUSTER_TIERS = [
+  { tier: 1, need: 6,  radius: 6.0, points: 50 },
+  { tier: 2, need: 12, radius: 8.0, points: 100 },
+];
+
+/* What a theme's gatherings are called, and what an island given over to it
+   is called. */
+const THEME_WORDS = {
+  village:  { clusters: ['Village', 'Market town'],      title: 'a village isle' },
+  shore:    { clusters: ['Beach camp', 'Harbour'],       title: 'a castaway shore' },
+  wildwood: { clusters: ['Forest', 'Old forest'],        title: 'a wooded isle' },
+  jungle:   { clusters: ['Jungle', 'Deep jungle'],       title: 'a jungle isle' },
+  scholar:  { clusters: ['Reading corner', 'Library quarter'], title: 'a scholar’s isle' },
+  zen:      { clusters: ['Zen garden', 'Temple grounds'], title: 'a Zen garden isle' },
+};
+
+const themeOf = (typeId) => (BY_ID[typeId] && BY_ID[typeId].theme) || null;
+const isThemed = (theme) => Boolean(theme) && theme !== 'utility';
+
+function countNear(x, z, radius, match, ignoreUid) {
   let n = 0;
   const r2 = radius * radius;
   for (const b of state.buildings) {
-    if (!match(b.typeId)) continue;
+    if (b.uid === ignoreUid || !match(b)) continue;
     const dx = b.x - x, dz = b.z - z;
     if (dx * dx + dz * dz <= r2) n++;
   }
   return n;
 }
 
-/* Scores a placement that has already been added to state.buildings. Returns
-   the points and, when a milestone lands, a word to show alongside them. */
-function scoreFor(typeId, x, z) {
-  let points = PLACE_POINTS;
-  let label = '';
+function sizePoints(typeId) {
+  if (MERGED.some(m => m.id === typeId)) return 40;
+  const r = BY_ID[typeId] ? BY_ID[typeId].radius : 0.5;
+  return r < 0.45 ? 5 : r < 0.9 ? 10 : 20;
+}
 
-  if (TREE_KINDS.indexOf(typeId) >= 0) {
-    const trees = countNear(x, z, FOREST_RADIUS, t => TREE_KINDS.indexOf(t) >= 0);
-    // Only pay out on the placement that tips it over, not every one after.
-    if (trees === FOREST_NEED) { points += 50; label = 'Forest!'; }
-    else if (trees > FOREST_NEED && trees % 4 === 0) { points += 25; label = 'Woodland!'; }
+/* Works for a placement that is only being considered (ignoreUid null: the
+   piece is not in state.buildings yet) and for one just made (its own uid, so
+   it does not count itself). */
+function scoreFor(typeId, x, z, ignoreUid) {
+  const theme = themeOf(typeId);
+  const base = sizePoints(typeId);
+
+  let near = 0, harmony = 1;
+  if (isThemed(theme)) {
+    near = countNear(x, z, HARMONY_RADIUS, b => themeOf(b.typeId) === theme, ignoreUid);
+    harmony = HARMONY_STEPS.find(([n]) => near >= n)[1];
   }
+  const repeats = state.buildings.filter(b => b.typeId === typeId && b.uid !== ignoreUid).length;
+  const variety = Math.max(0.4, 1 - 0.1 * repeats);
 
-  const def = BY_ID[typeId];
-  if (def && def.terrace) {
-    const homes = countNear(x, z, TOWN_RADIUS, t => BY_ID[t] && BY_ID[t].terrace);
-    if (homes === TOWN_NEED) { points += 50; label = 'Village!'; }
-    else if (homes > TOWN_NEED && homes % 4 === 0) { points += 25; label = 'Town!'; }
+  let points = Math.max(1, Math.round(base * harmony * variety));
+  let label = '', tier = 0;
+
+  if (isThemed(theme)) {
+    for (const c of CLUSTER_TIERS) {
+      const here = countNear(x, z, c.radius, b => themeOf(b.typeId) === theme, ignoreUid) + 1;
+      if (here < c.need) continue;
+      const held = countNear(x, z, c.radius * 1.5,
+        b => b.tier === c.tier && themeOf(b.typeId) === theme, ignoreUid);
+      if (held) continue;
+      points += c.points;
+      label = THEME_WORDS[theme] ? THEME_WORDS[theme].clusters[c.tier - 1] + '!' : '';
+      tier = c.tier;
+    }
   }
+  return { points, label, tier, base, harmony, variety, near, theme };
+}
 
-  return { points, label };
+/* The island's character: if one theme holds at least 60% of the points
+   standing on it (utility aside), across at least eight pieces, the island is
+   named for it. */
+function islandTitle(buildings) {
+  const by = {};
+  let total = 0, count = 0;
+  for (const b of buildings) {
+    const theme = themeOf(b.typeId);
+    if (!isThemed(theme)) continue;
+    const pts = typeof b.pts === 'number' ? b.pts : pointsHeld(b.typeId);
+    by[theme] = (by[theme] || 0) + pts;
+    total += pts;
+    count++;
+  }
+  if (count < 8 || total <= 0) return null;
+  let best = null;
+  for (const t in by) if (!best || by[t] > by[best]) best = t;
+  if (by[best] / total < 0.6 || !THEME_WORDS[best]) return null;
+  return { theme: best, share: by[best] / total, text: THEME_WORDS[best].title };
+}
+
+/* How a score breaks down, in a few words, for the hint and the hover note. */
+function scoreWords(s) {
+  const bits = [];
+  if (s.harmony > 1 && THEMES[s.theme]) {
+    bits.push('×' + s.harmony + ' beside ' + s.near + ' ' + THEMES[s.theme].name);
+  }
+  if (s.variety < 1) bits.push('fewer for repeats');
+  return bits.join(', ');
 }
 
 /* Brushes only. The move tool sits in the same group for tidiness but is a
@@ -2549,6 +2652,7 @@ function slotSummary(i) {
     return {
       name: isAutoName(d.name) ? 'Island ' + (i + 1) : d.name,
       built: (d.buildings || []).length,
+      title: (islandTitle((d.buildings || []).filter(b => BY_ID[b.typeId])) || {}).text,
       charm: d.charm || 0,
       saved: d.saved || 0,
       palette: d.paletteIndex || 0,
@@ -3714,6 +3818,7 @@ canvas.addEventListener('pointermove', e => {
   }
   if (isLandTool(state.selected)) updateBrushRing(e);
   else updateHover(e);
+  inspectHover(e);
 });
 
 canvas.addEventListener('pointerup', e => {
@@ -4566,7 +4671,8 @@ function placeAtHover(e) {
   if (landed) { landed.scale.setScalar(0.01); popping.push({ obj: landed, t: 0, dur: 0.34 }); }
   puffAt(placed.typeId, placed.x, placed.z);
 
-  const award = scoreFor(placed.typeId, placed.x, placed.z);
+  const award = scoreFor(placed.typeId, placed.x, placed.z, placed.uid);
+  if (award.tier) placed.tier = award.tier;
   // Kept on the building, cluster bonus included: otherwise lifting the fourth
   // tree and setting it back would pay out 'Forest!' again every time.
   placed.pts = award.points;
@@ -7034,7 +7140,8 @@ function buildSlotBar() {
   for (let i = 0; i < SLOT_COUNT; i++) {
     const info = i === activeSlot
       ? { name: isAutoName(state.islandName) ? 'Island ' + (i + 1) : state.islandName,
-          built: state.buildings.length }
+          built: state.buildings.length,
+          title: (islandTitle(state.buildings) || {}).text }
       : slotSummary(i);
     const b = document.createElement('button');
     b.type = 'button';
@@ -7048,7 +7155,8 @@ function buildSlotBar() {
     }
     const note = document.createElement('span');
     note.className = 'slot-note';
-    note.textContent = info ? (info.built + (info.built === 1 ? ' thing' : ' things')) : 'empty';
+    note.textContent = info ? (info.built + (info.built === 1 ? ' thing' : ' things')
+      + (info.title ? '  \u00b7  ' + info.title : '')) : 'empty';
     b.append(name, note);
     /* Rename by clicking the name itself.
 
@@ -7307,9 +7415,17 @@ function renderHint() {
     return;
   }
   const deg = Math.round(state.rotation * 180 / Math.PI) % 360;
+  // What it would earn just here, and why, so harmony is something you can
+  // see while choosing a spot rather than a number that appears afterwards.
+  let worth = '';
+  if (hover && !hover.reason && BY_ID[tool.id]) {
+    const s = scoreFor(tool.id, hover.x, hover.z, null);
+    const why = scoreWords(s);
+    worth = '+' + s.points + ' here' + (why ? ' (' + why + ')' : '') + (s.label ? ' \u2014 ' + s.label : '') + '  \u00b7  ';
+  }
   el.textContent = IS_TOUCH
-    ? tool.hint + '  \u00b7  drag to aim, lift to place  \u00b7  two fingers move the view'
-    : tool.hint + '  \u00b7  R to turn (' + deg + '\u00b0)  \u00b7  Esc to cancel';
+    ? worth + tool.hint + '  \u00b7  drag to aim, lift to place'
+    : worth + tool.hint + '  \u00b7  R to turn (' + deg + '\u00b0)  \u00b7  Esc to cancel';
 }
 
 /* The floating "+N". A projected DOM node rather than 3D text: crisp at any
@@ -7362,6 +7478,61 @@ function renderCount() {
   $('hud-count').textContent = n + (n === 1 ? ' thing built' : ' things built');
   const charmEl = $('hud-charm');
   if (charmEl) charmEl.textContent = state.charm.toLocaleString() + ' points';
+  renderTitle();
+}
+
+/* The island's name for itself, beside the score. Announced once when it
+   changes, so a garden becoming a Zen garden isle is noticed. */
+let lastTitle, lastTitleIsland;
+function renderTitle() {
+  const t = islandTitle(state.buildings);
+  const text = t ? t.text : '';
+  const el = document.getElementById('hud-title');
+  if (el) el.textContent = text;
+  // Arriving on another island is not that island changing.
+  const island = activeSlot + '|' + state.seed;
+  if (island !== lastTitleIsland) { lastTitleIsland = island; lastTitle = text; return; }
+  if (text && text !== lastTitle && state.screen === 'playing') {
+    sound('discover');
+    toast('This island has become ' + text);
+  }
+  lastTitle = text;
+}
+
+/* Hovering something already built, with nothing in hand: what it is, what
+   it holds and why. Throttled, since it raycasts the whole island. */
+let inspectAt = 0;
+function inspectHover(e) {
+  const el = document.getElementById('inspect');
+  if (!el) return;
+  const now = performance.now();
+  if (now - inspectAt < 90) return;
+  inspectAt = now;
+  if (IS_TOUCH || state.selected || state.screen !== 'playing' || rig.pointers.size) {
+    el.classList.remove('is-on');
+    return;
+  }
+  pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+  pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hits = raycaster.intersectObjects(placedRoot.children, true);
+  const uid = hits.length && hits[0].object.userData.uid;
+  const b = uid && state.buildings.find(x => x.uid === uid);
+  if (!b || !BY_ID[b.typeId]) { el.classList.remove('is-on'); return; }
+  const theme = THEMES[themeOf(b.typeId)];
+  const pts = typeof b.pts === 'number' ? b.pts : pointsHeld(b.typeId);
+  el.innerHTML = '';
+  const name = document.createElement('b');
+  name.textContent = BY_ID[b.typeId].name;
+  const line = document.createElement('div');
+  line.textContent = (theme ? theme.name + '  \u00b7  ' : '') + 'holds ' + pts + ' points'
+    + (b.tier && THEME_WORDS[themeOf(b.typeId)] ? '  \u00b7  ' + THEME_WORDS[themeOf(b.typeId)].clusters[b.tier - 1] : '');
+  const how = document.createElement('i');
+  how.textContent = 'Click to build another';
+  el.append(name, line, how);
+  el.style.left = e.clientX + 'px';
+  el.style.top = e.clientY + 'px';
+  el.classList.add('is-on');
 }
 
 function syncSettings() {

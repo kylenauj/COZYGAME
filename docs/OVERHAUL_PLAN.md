@@ -226,7 +226,14 @@ accent. This sits in shared storage (`SHARED_KEY`), like discoveries do now.
    garden), opening at a new **Blossom** rank (4,000). Wired into themes, toolbar, glow, sway, bird
    perches, villager gathering spots and Discoveries. Total models: 72. *Cluster labels* wait for
    step 5's harmony scoring.
-5. **Harmony scoring and theme titles**, plus the tooltip breakdown.
+5. **Harmony scoring and theme titles.** ✅ *Done:* size base (5/10/20, merged 40) × harmony
+   (×1 / ×1.25 / ×1.5 / ×2 by same-theme neighbours within 6) × variety (−10% per repeat, floor
+   40%). Theme clusters replace Forest/Village: 6 together names the place (+50), 12 (+100). The
+   piece that tipped it holds the bonus, and no second piece can earn that tier nearby, so lifting
+   and re-placing can't farm it. The placement hint previews "+N here (×1.5 beside 4 Zen)";
+   hovering a built piece shows what it holds. An island ≥60% one theme (8+ pieces) gets a title
+   in the HUD and on its menu card ("a Zen garden isle"), announced when it changes.
+   *Note:* rank thresholds were tuned for the old flat +10; step 6 retunes them.
 6. **Extended ranks and archipelago rank.** Slot unlocks.
 7. **Collection Book** with golden variants.
 8. **Guests**, friendship and multiple requests.
