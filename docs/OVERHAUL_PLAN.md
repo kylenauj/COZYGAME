@@ -210,7 +210,10 @@ accent. This sits in shared storage (`SHARED_KEY`), like discoveries do now.
    fixed the charm exploit (`b.pts`, `addCharm`/`takeCharm`, ranks follow the island's peak charm),
    loaded `state.done` back per island, and tagged all 57 entries with a theme (`THEMES` table).
    *Still open:* restoring or recreating the build split (§3.2, §3.3).
-2. **Feel.** Chip thumbnails, pop-in animation and sounds, redo, eyedropper.
+2. **Feel.** ✅ *Done:* chip thumbnails (drawn per palette into a small offscreen renderer), a
+   pop-in and leaf/dust puff on placing, merging and removing, a knock pitched by size that steps
+   up a pentatonic scale through quick runs, redo (Ctrl+Y, Ctrl+Shift+Z, touch button), and an
+   eyedropper (click anything built with nothing in hand).
 3. **Model kit.** Add a procedural builder registry with the shared material slots, and prove it by
    rebuilding one existing model in it to compare.
 4. **Theme pack 1: Zen Garden** (pairs with the Blossom palette). This proves the whole pipeline:

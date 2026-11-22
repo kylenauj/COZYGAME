@@ -455,7 +455,17 @@ body.bar-away .buildbar-wrap{transform:translate(-50%,calc(100% + 20px))}
 .hud-rank-next{font-size:.64rem;color:var(--sand-faint);letter-spacing:.04em}
 @media (pointer: coarse){.hud-rank-next{display:none}.hud-rank-track{width:44px}}
 
-.chip-key{min-height:.8em;font-size:.62rem;letter-spacing:.12em;opacity:.65}
+.chip{position:relative}
+.chip-key{position:absolute;top:5px;left:8px;font-size:.62rem;letter-spacing:.12em;opacity:.65}
+/* Pictures first, names under them: the eye finds a shape faster than a word. */
+.chip-thumb,.chip-glyph{width:46px;height:46px;margin:-2px 0 -3px;pointer-events:none;
+  transition:transform 220ms var(--ease)}
+.chip-thumb{display:block;object-fit:contain;filter:drop-shadow(0 3px 4px rgba(10,22,26,.3))}
+.chip-glyph{display:flex;align-items:center;justify-content:center;font-size:1.45rem;opacity:.8}
+.chip:hover .chip-thumb,.chip.is-active .chip-thumb{transform:translateY(-2px) scale(1.07)}
+.hiddenbar-tools .chip{flex-direction:row;align-items:center;gap:10px}
+.hiddenbar-tools .chip-thumb,.hiddenbar-tools .chip-glyph{width:38px;height:38px;margin:0}
+@media (pointer: coarse){.chip-thumb,.chip-glyph{width:38px;height:38px}}
 .chip-name{font-size:.85rem;white-space:nowrap}
 .chip--eraser{margin-left:6px;border-left:1px solid var(--hairline);border-radius:0 15px 15px 0}
 .chip--divide{margin-left:6px;border-left:1px solid var(--hairline);border-radius:0 15px 15px 0}
@@ -759,6 +769,9 @@ body.bar-away .buildbar-wrap{transform:translate(-50%,calc(100% + 20px))}
       </button>
       <button type="button" class="tbtn" id="t-undo" aria-label="Remove the last thing placed">
         <span class="tbtn-glyph">&#8630;</span><span class="tbtn-label">Undo</span>
+      </button>
+      <button type="button" class="tbtn" id="t-redo" aria-label="Put back what was undone">
+        <span class="tbtn-glyph">&#8631;</span><span class="tbtn-label">Redo</span>
       </button>
     </div>
 
@@ -1068,6 +1081,7 @@ function buildHiddenBar() {
     b.dataset.id = id;
     b.innerHTML = '<span class="chip-key"></span><span class="chip-name"></span>';
     b.querySelector('.chip-name').textContent = tool.name;
+    b.insertBefore(chipArt(id), b.querySelector('.chip-name'));
     b.addEventListener('click', () => { selectTool(id); buildHiddenBar(); });
     bar.appendChild(b);
   }
@@ -1201,6 +1215,102 @@ function measureReach(group) {
 
 const PROTOTYPES = {};
 const MODEL_KEYS = Object.keys(MODELS);
+
+/* --- thumbnails -----------------------------------------------------------
+
+   The toolbar was words only. Fifty-odd names is a lot to read, and a word
+   cannot tell a fern from a reed the way a glance can. Each piece is drawn once
+   into a small picture the first time its chip is shown, and the picture is
+   kept.
+
+   One small renderer of its own, so the main view is never touched. It draws
+   with the very materials the island uses, so a thumbnail wears the season the
+   island is in; the cache is keyed by palette and redrawn when it changes.
+   ------------------------------------------------------------------------ */
+const THUMB_PX = 96;
+const thumbCache = {};
+let thumbKit = null;          // null: not made yet. false: could not be made.
+let thumbsArmed = false;      // set once the toolbar exists, so a palette change can redraw it
+
+function getThumbKit() {
+  if (thumbKit !== null) return thumbKit;
+  try {
+    const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    r.setPixelRatio(1);
+    r.setSize(THUMB_PX, THUMB_PX);
+    r.outputEncoding = THREE.sRGBEncoding;
+    r.toneMapping = THREE.ACESFilmicToneMapping;
+    r.toneMappingExposure = 1.2;
+    r.setClearColor(0x000000, 0);
+    const sc = new THREE.Scene();
+    sc.add(new THREE.HemisphereLight(0xFFE6C4, 0x6A5644, 1.15));
+    const sun = new THREE.DirectionalLight(0xFFF0D8, 1.7);
+    sun.position.set(3, 6, 4);
+    sc.add(sun);
+    thumbKit = { r, sc, cam: new THREE.PerspectiveCamera(26, 1, 0.05, 400) };
+  } catch (e) {
+    thumbKit = false;           // the toolbar simply stays as words
+  }
+  return thumbKit;
+}
+
+const THUMB_DIR = new THREE.Vector3(1, 0.78, 1.25).normalize();
+const thumbBox = new THREE.Box3(), thumbSize = new THREE.Vector3(), thumbMid = new THREE.Vector3();
+
+function thumbFor(id) {
+  if (!PROTOTYPES[id]) return null;
+  const key = state.paletteIndex + '|' + id;   // only ever asked once the game is up
+  if (thumbCache[key] !== undefined) return thumbCache[key];
+  const kit = getThumbKit();
+  if (!kit) return (thumbCache[key] = null);
+  try {
+    // A clone shares geometry and materials, so this costs nothing to keep or drop.
+    const model = PROTOTYPES[id].clone();
+    thumbBox.setFromObject(model);
+    thumbBox.getSize(thumbSize);
+    thumbBox.getCenter(thumbMid);
+    // Fit the bounding sphere, so a flat bed of flowers and a lighthouse both
+    // fill the frame rather than one being a speck.
+    const radius = Math.max(0.2, thumbSize.length() / 2);
+    const dist = radius / Math.sin(THREE.MathUtils.degToRad(kit.cam.fov / 2)) * 0.92;
+    kit.cam.position.copy(thumbMid).addScaledVector(THUMB_DIR, dist);
+    kit.cam.near = dist / 20;
+    kit.cam.far = dist * 4;
+    kit.cam.updateProjectionMatrix();
+    kit.cam.lookAt(thumbMid);
+    kit.sc.add(model);
+    kit.r.render(kit.sc, kit.cam);
+    kit.sc.remove(model);
+    thumbCache[key] = kit.r.domElement.toDataURL('image/png');
+  } catch (e) {
+    thumbCache[key] = null;
+  }
+  return thumbCache[key];
+}
+
+/* Tools that are not things have no model to draw, so they get a mark. */
+const TOOL_GLYPHS = {
+  path: '\u2237', field: '\u25A6', clear: '\u25CC', raise: '\u25B2', lower: '\u25BC',
+  level: '\u25AC', mover: '\u2725', eraser: '\u2715',
+};
+
+/* The picture (or mark) at the top of a chip. */
+function chipArt(id) {
+  const url = thumbFor(id);
+  if (url) {
+    const img = document.createElement('img');
+    img.className = 'chip-thumb';
+    img.alt = '';
+    img.draggable = false;
+    img.src = url;
+    return img;
+  }
+  const g = document.createElement('span');
+  g.className = 'chip-glyph';
+  g.setAttribute('aria-hidden', 'true');
+  g.textContent = TOOL_GLYPHS[id] || '\u25C7';
+  return g;
+}
 
 /* --- the island ---------------------------------------------------------
    Terrain is a base function plus an editable offset field. The base comes
@@ -1647,6 +1757,8 @@ function applyPalette(index) {
   }
   }
   terrainDirty = true;
+  // The thumbnails wear the season too.
+  if (thumbsArmed) { buildToolbar(); if (hiddenOpen) buildHiddenBar(); }
   return p.name;
 }
 applyPalette(0);
@@ -3225,7 +3337,11 @@ window.addEventListener('keydown', e => {
     const deg = document.getElementById('t-rotate-deg');
     if (deg) deg.textContent = Math.round(state.rotation * 180 / Math.PI) % 360 + '\u00b0';
   }
-  if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); undoLast(); }
+  if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    if (e.shiftKey) redoLast(); else undoLast();
+  }
+  if (e.key.toLowerCase() === 'y' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); redoLast(); }
   if (e.key === 'Home' || e.key.toLowerCase() === 'c') resetCamera();
   if (e.key.toLowerCase() === 'k' && state.screen === 'playing') {
     state.paused = !state.paused;
@@ -3582,6 +3698,74 @@ function refreshGhost() {
    ----------------------------------------------------------------------- */
 const popping = [];
 
+/* --- puffs ------------------------------------------------------------------
+
+   A handful of leaves or a little dust thrown up when something lands, is
+   merged, or is taken away. Small, quick and pooled, so a busy minute of
+   building leaves nothing behind. Plants throw leaves in the season's own leaf
+   colour; everything else kicks up the colour of the island's paths. */
+const PLANTS = new Set(TREE_KINDS.concat(['flowers', 'fern', 'reeds', 'bamboo', 'jungle_flower',
+                                         'garden', 'bamboo_grove', 'orchard']));
+const puffs = [];
+const puffPool = [];
+let puffGeo = null;
+
+function puffColour(typeId) {
+  const pal = PALETTES[state.paletteIndex] || PALETTES[0];
+  return PLANTS.has(typeId) ? (pal.tint.leaf_soft || pal.grassHi) : pal.pathA;
+}
+
+function puffAt(typeId, x, z, scale) {
+  if (!puffGeo) puffGeo = new THREE.IcosahedronGeometry(0.1, 0);
+  const def = BY_ID[typeId];
+  const reach = Math.max(0.4, def ? def.radius : 0.5) * (scale || 1);
+  const n = Math.min(16, Math.round(5 + reach * 6));
+  const hex = puffColour(typeId);
+  const y = terrainHeight(x, z) + 0.15;
+  for (let i = 0; i < n; i++) {
+    let m = puffPool.pop();
+    if (!m) {
+      m = new THREE.Mesh(puffGeo, new THREE.MeshLambertMaterial({ transparent: true, depthWrite: false }));
+      m.userData.v = new THREE.Vector3();
+    }
+    m.material.color.copy(lin(hex)).offsetHSL(0, 0, (Math.random() - 0.5) * 0.12);
+    m.material.opacity = 0.95;
+    const a = Math.random() * Math.PI * 2;
+    const r = reach * (0.4 + Math.random() * 0.6);
+    m.position.set(x + Math.cos(a) * r, y, z + Math.sin(a) * r);
+    const sp = 1.0 + Math.random() * 1.6;
+    m.userData.v.set(Math.cos(a) * sp, 1.6 + Math.random() * 1.8, Math.sin(a) * sp);
+    m.userData.t = 0;
+    m.userData.life = 0.5 + Math.random() * 0.35;
+    m.userData.size = (0.6 + Math.random() * 0.9) * Math.min(1.6, 0.8 + reach * 0.3);
+    m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
+    scene.add(m);
+    puffs.push(m);
+  }
+}
+
+function updatePuffs(dt) {
+  for (let i = puffs.length - 1; i >= 0; i--) {
+    const m = puffs[i];
+    const u = m.userData;
+    u.t += dt;
+    const k = u.t / u.life;
+    if (k >= 1) {
+      scene.remove(m);
+      puffs.splice(i, 1);
+      puffPool.push(m);
+      continue;
+    }
+    u.v.y -= 5.0 * dt;
+    u.v.multiplyScalar(1 - 2.4 * dt);
+    m.position.addScaledVector(u.v, dt);
+    m.rotation.x += dt * 4;
+    m.rotation.y += dt * 3;
+    m.scale.setScalar(u.size * (1 - k * 0.5));
+    m.material.opacity = 0.95 * (1 - k * k);
+  }
+}
+
 /* Which two existing pieces would fuse with something placed here? Returns
    null when nothing would merge. Used for both the preview and the real thing,
    so what you're shown is exactly what happens. */
@@ -3627,6 +3811,7 @@ function tryMerge(placed) {
              + MERGE_POINTS;
   const obj = placedRoot.children.find(c => c.userData.uid === merged.uid);
   if (obj) { obj.scale.setScalar(0.01); popping.push({ obj, t: 0 }); }
+  puffAt(plan.into, plan.cx, plan.cz, 1.4);
 
   // unlock() returns true only the first time a form is found, which is both
   // the bonus and the fanfare. Calling it twice would swallow the discovery.
@@ -3832,6 +4017,14 @@ function reseatAll() {
   }
 }
 
+function pickKind(typeId) {
+  if (!BY_ID[typeId]) return;
+  if (!isUnlocked(typeId)) { selectTool(typeId); return; }   // says when it arrives
+  selectTool(typeId);
+  sound('pick');
+  toast('Another ' + BY_ID[typeId].name.toLowerCase());
+}
+
 function handleClick(e) {
   startAudio();
   if (isLandTool(state.selected)) return;
@@ -3851,6 +4044,7 @@ function handleClick(e) {
         if (back > 0) {
           popScore(-back, '', doomed.x, terrainHeight(doomed.x, doomed.z) + 1.1, doomed.z);
         }
+        puffAt(doomed.typeId, doomed.x, doomed.z, 0.8);
       }
       removeBuilding(hits[0].object.userData.uid);
     }
@@ -3896,7 +4090,19 @@ function handleClick(e) {
     saveGame();
     return;
   }
-  if (!state.selected) return;
+  /* Nothing in hand: clicking something already built picks up another of
+     the same kind. Saves hunting through the tabs for the thing you are
+     looking straight at. */
+  if (!state.selected) {
+    pointerNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointerNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(pointerNDC, camera);
+    const hits = raycaster.intersectObjects(placedRoot.children, true);
+    const uid = hits.length && hits[0].object.userData.uid;
+    const b = uid && state.buildings.find(x => x.uid === uid);
+    if (b) pickKind(b.typeId);
+    return;
+  }
   // A tap on touch fires no pointermove first, so hover may be stale or unset.
   updateHover(e);
   if (!hover || hover.reason) return;
@@ -3905,13 +4111,33 @@ function handleClick(e) {
 
 /* Commit whatever the preview is currently showing. Shared by the mouse click
    and by lifting a finger after dragging the preview into position. */
+/* Pitch for the knock. Big things sound lower than small ones, and pieces set
+   down in quick succession step gently up a pentatonic scale, so a burst of
+   planting plays a little phrase instead of the same note over and over. A
+   pause of a few seconds lets it settle back home. */
+const RUN_STEPS = [1, 9 / 8, 5 / 4, 3 / 2, 5 / 3];
+let placeRun = 0, lastPlacedAt = 0;
+
+function placePitch(typeId) {
+  const now = performance.now();
+  placeRun = now - lastPlacedAt < 2600 ? Math.min(placeRun + 1, RUN_STEPS.length - 1) : 0;
+  lastPlacedAt = now;
+  const def = BY_ID[typeId];
+  const size = 1.18 - Math.min(def ? def.radius : 0.5, 2) * 0.2;
+  return size * RUN_STEPS[placeRun] * (0.98 + Math.random() * 0.04);
+}
+
 function placeAtHover(e) {
   if (!hover || hover.reason || !state.selected) return;
   remember('placing the ' + (BY_ID[state.selected] ? BY_ID[state.selected].name.toLowerCase() : 'piece'));
-  sound('place');
+  sound('place', placePitch(state.selected));
   state.placed++;
   checkNudges(state.selected, hover.x, hover.z);
   const placed = addBuilding(state.selected, hover.x, hover.z, placeYaw(state.selected, hover.x, hover.z));
+  // Land with a little bounce and a puff, rather than simply being there.
+  const landed = placedRoot.children.find(c => c.userData.uid === placed.uid);
+  if (landed) { landed.scale.setScalar(0.01); popping.push({ obj: landed, t: 0, dur: 0.34 }); }
+  puffAt(placed.typeId, placed.x, placed.z);
 
   const award = scoreFor(placed.typeId, placed.x, placed.z);
   // Kept on the building, cluster bonus included: otherwise lifting the fourth
@@ -6251,7 +6477,8 @@ const FIRST_STEPS = [
   [1,  'first',  'Drag to look around. R turns a piece before you set it down.'],
   [4,  'land',   'The Land tools shape the ground and lay paths.'],
   [8,  'move',   'The Move tool picks a thing up and puts it somewhere better.'],
-  [14, 'undo',   'Z undoes the last thing \u2014 including sculpting.'],
+  [10, 'pick',   'With nothing in hand, click anything you have built to make another.'],
+  [14, 'undo',   'Ctrl+Z undoes the last thing \u2014 including sculpting. Ctrl+Y puts it back.'],
   [22, 'lost',   'Press C to bring the camera back to the middle.'],
 ];
 
@@ -6561,6 +6788,7 @@ function buildToolbar() {
     b.innerHTML = '<span class="chip-key"></span><span class="chip-name"></span>';
     b.querySelector('.chip-key').textContent = i < 9 ? String(i + 1) : '';
     b.querySelector('.chip-name').textContent = tool.name;
+    b.insertBefore(chipArt(id), b.querySelector('.chip-name'));
 
     /* Locked things stay in the row, greyed, labelled with the rank that
        opens them. Hiding them would make the toolbar shorter but would also
@@ -6585,8 +6813,10 @@ function buildToolbar() {
   e.className = 'chip chip--eraser' + (state.selected === 'eraser' ? ' is-active' : '');
   e.dataset.id = 'eraser';
   e.innerHTML = '<span class="chip-key"></span><span class="chip-name">Remove</span>';
+  e.insertBefore(chipArt('eraser'), e.querySelector('.chip-name'));
   e.addEventListener('click', () => selectTool('eraser'));
   bar.appendChild(e);
+  thumbsArmed = true;
 }
 
 function selectTool(id) {
@@ -6620,8 +6850,8 @@ function renderHint() {
   const el = $('buildbar-hint');
   if (!tool) {
     el.textContent = IS_TOUCH
-      ? 'Pick something to place  \u00b7  one finger drags the view  \u00b7  pinch to zoom'
-      : 'Pick something to place  \u00b7  drag to pan  \u00b7  scroll to zoom  \u00b7  Q and E to turn the view';
+      ? 'Pick something to place, or tap anything built for another  \u00b7  one finger drags the view  \u00b7  pinch to zoom'
+      : 'Pick something to place, or click anything built for another  \u00b7  drag to pan  \u00b7  scroll to zoom  \u00b7  Q and E to turn the view';
     return;
   }
   if (tool.land) {
@@ -7085,8 +7315,15 @@ function blip(freq, dur, type, level, bend) {
 
 const SOUNDS = {
   // A wooden knock: low, quick, falling.
-  place:   () => { blip(190, 0.13, 'triangle', 0.16, 0.55); blip(95, 0.16, 'sine', 0.1, 0.6); },
-  remove:  () => blip(150, 0.1, 'sine', 0.1, 0.7),
+  // k shifts the pitch: lower for big pieces, rising through a run of placing.
+  place:   (k = 1) => {
+    blip(190 * k, 0.13, 'triangle', 0.16, 0.55);
+    blip(95 * k, 0.16, 'sine', 0.1, 0.6);
+    blip(760 * k, 0.09, 'sine', 0.035, 1.02);      // a faint ring on top
+  },
+  remove:  () => blip(150 * (0.95 + Math.random() * 0.1), 0.1, 'sine', 0.1, 0.7),
+  pick:    () => { blip(520, 0.08, 'sine', 0.06, 1.15); setTimeout(() => blip(700, 0.1, 'sine', 0.05), 60); },
+  redo:    () => blip(360, 0.12, 'sine', 0.08, 1.4),
   // Merging is the good news, so it rises.
   merge:   () => { blip(420, 0.16, 'sine', 0.12, 1.5); setTimeout(() => blip(630, 0.2, 'sine', 0.1, 1.35), 90); },
   discover:() => { [523, 659, 784].forEach((f, i) => setTimeout(() => blip(f, 0.3, 'sine', 0.1), i * 110)); },
@@ -7095,9 +7332,9 @@ const SOUNDS = {
   refuse:  () => blip(120, 0.1, 'sine', 0.07, 0.85),
 };
 
-function sound(name) {
+function sound(name, arg) {
   const fn = SOUNDS[name];
-  if (fn) { try { fn(); } catch (e) { /* audio can fail; the game must not */ } }
+  if (fn) { try { fn(arg); } catch (e) { /* audio can fail; the game must not */ } }
 }
 
 /* --- the radio ------------------------------------------------------------
@@ -7238,6 +7475,10 @@ function updateRadio(dt) {
    ------------------------------------------------------------------------ */
 const HISTORY_MAX = 30;
 const history = [];
+/* What has been undone, newest last, so it can be put back. Anything new that
+   is done clears it: redoing into a world that has since moved on would
+   overwrite the new work. */
+const future = [];
 let historyOn = true;        // suppressed while an undo is being applied
 
 function snapshot() {
@@ -7254,6 +7495,7 @@ function snapshot() {
 /* Call BEFORE changing anything, naming what is about to happen. */
 function remember(what) {
   if (!historyOn) return;
+  future.length = 0;
   history.push({ what, world: snapshot() });
   if (history.length > HISTORY_MAX) history.shift();
 }
@@ -7282,6 +7524,7 @@ function restore(w) {
 function undoLast() {
   const step = history.pop();
   if (!step) { showNudge('nothing-to-undo', 'Nothing left to undo.'); return; }
+  future.push({ what: step.what, world: snapshot() });
   historyOn = false;
   try {
     restore(step.world);
@@ -7290,6 +7533,21 @@ function undoLast() {
   }
   sound('undo');
   toast('Undid ' + step.what);
+}
+
+function redoLast() {
+  const step = future.pop();
+  if (!step) { toast('Nothing to put back'); return; }
+  history.push({ what: step.what, world: snapshot() });
+  if (history.length > HISTORY_MAX) history.shift();
+  historyOn = false;
+  try {
+    restore(step.world);
+  } finally {
+    historyOn = true;
+  }
+  sound('redo');
+  toast('Put back ' + step.what);
 }
 
 /* A short line, low on the screen, for things that need saying once. */
@@ -7342,6 +7600,8 @@ if (pauseBtn) pauseBtn.addEventListener('click', () => {
 
 const undoBtn = $('t-undo');
 if (undoBtn) undoBtn.addEventListener('click', undoLast);
+const redoBtn = $('t-redo');
+if (redoBtn) redoBtn.addEventListener('click', redoLast);
 
 /* The button says what pressing it will do, rather than always the same thing. */
 function refreshSendButton() {
@@ -7438,6 +7698,7 @@ function frame(now) {
   updateHens(dt);
   updateBirds(dt);
   updatePops(dt);
+  updatePuffs(dt);
   updateWeather(dt);
   updateGlow(dt);
   updateCats(dt);
@@ -7471,7 +7732,7 @@ function frame(now) {
   // Merge pop: overshoot a little, then settle.
   for (let i = popping.length - 1; i >= 0; i--) {
     const p = popping[i];
-    p.t = Math.min(p.t + dt / 0.42, 1);
+    p.t = Math.min(p.t + dt / (p.dur || 0.42), 1);
     const k = p.t - 1;
     const s = 1 + k * k * (2.9 * k + 1.9);
     p.obj.scale.setScalar(Math.max(0.01, s));
